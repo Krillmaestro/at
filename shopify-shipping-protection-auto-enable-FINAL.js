@@ -96,8 +96,19 @@
 
   // Registrera callback när kundvagnen öppnas
   function registerCallback() {
-    if (typeof upcartOnCartOpened === 'function') {
-      log('🚀 Registrerar UPcart callback...');
+    // Försök med upcartSubscribeCartOpened (den som faktiskt fungerar!)
+    if (typeof upcartSubscribeCartOpened === 'function') {
+      log('🚀 Registrerar UPcart callback (Subscribe version)...');
+
+      upcartSubscribeCartOpened(function() {
+        log('🔔 Kundvagn öppnad! Startar aktivering...');
+        attemptCount = 0;
+        setTimeout(tryActivateShippingProtection, 800);
+      });
+
+      log('✓ Callback registrerad - leveransskydd aktiveras automatiskt när vagnen öppnas!');
+    } else if (typeof upcartOnCartOpened === 'function') {
+      log('🚀 Registrerar UPcart callback (On version)...');
 
       upcartOnCartOpened(function() {
         log('🔔 Kundvagn öppnad! Startar aktivering...');
@@ -105,9 +116,9 @@
         setTimeout(tryActivateShippingProtection, 800);
       });
 
-      log('✓ Callback registrerad - leveransskydd aktiveras automatiskt när vagnen öppnas!');
+      log('✓ Callback registrerad!');
     } else {
-      log('⏳ upcartOnCartOpened finns inte än, väntar...');
+      log('⏳ UPcart callbacks finns inte än, väntar...');
       setTimeout(registerCallback, 1000);
     }
   }
