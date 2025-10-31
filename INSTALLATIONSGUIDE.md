@@ -2,7 +2,7 @@
 
 Denna guide visar hur du lägger till kod i ditt Shopify-tema för att automatiskt aktivera leveransskyddet från UPcart.
 
-## Metod 1: Inline Script (Enklast)
+## Metod 1: Inline Script (Enklast) ⭐ REKOMMENDERAS
 
 1. Logga in i din Shopify-admin
 2. Gå till **Online Store** > **Themes**
@@ -12,66 +12,174 @@ Denna guide visar hur du lägger till kod i ditt Shopify-tema för att automatis
 6. Klistra in följande kod:
 
 ```html
+<!-- Auto-aktivera leveransskydd -->
 <script>
 (function() {
   'use strict';
 
-  function enableShippingProtection() {
-    const addonsModules = document.querySelectorAll('.styles_AddonsModule__title__, .upcart-addons-title');
-    let shippingProtectionToggle = null;
+  var DEBUG = true;
+  var attemptCount = 0;
+  var maxAttempts = 20;
 
-    addonsModules.forEach(function(module) {
-      const titleText = module.textContent || module.innerText;
-      if (titleText.includes('Leverans skydd') || titleText.includes('Leveransskydd')) {
-        const container = module.closest('.Stack');
-        if (container) {
-          shippingProtectionToggle = container.querySelector('.upcart-addons-toggle, .styles_AddonsModule__toggle__');
-        }
-      }
-    });
+  function log(message) {
+    if (DEBUG) {
+      console.log('[Leveransskydd Auto-Enable] ' + message);
+    }
+  }
 
-    if (shippingProtectionToggle) {
-      const toggleSwitch = shippingProtectionToggle.querySelector('.styles_ToggleSwitch__');
-      const isActive = shippingProtectionToggle.classList.contains('active') ||
-                       shippingProtectionToggle.classList.contains('checked') ||
-                       toggleSwitch?.classList.contains('active') ||
-                       toggleSwitch?.classList.contains('checked');
+  function enableShippingProtectionInDocument(doc, context) {
+    context = context || 'huvuddokument';
+    log('Söker i ' + context + '...');
 
-      if (!isActive) {
-        console.log('Aktiverar leveransskydd automatiskt...');
-        shippingProtectionToggle.click();
+    var allElements = doc.querySelectorAll('*');
+    var shippingElement = null;
+    var toggleElement = null;
+
+    for (var i = 0; i < allElements.length; i++) {
+      var el = allElements[i];
+      if (el.textContent && el.textContent.includes('Leverans skydd') && el.children.length < 10) {
+        shippingElement = el;
+        log('Hittade element med "Leverans skydd": ' + el.className);
+        break;
       }
     }
+
+    if (shippingElement) {
+      var parent = shippingElement;
+
+      for (var level = 0; level < 5; level++) {
+        if (!parent) break;
+
+        var toggles = parent.querySelectorAll('[class*="toggle" i], [class*="Toggle" i], [class*="switch" i], [class*="Switch" i]');
+        if (toggles.length > 0) {
+          toggleElement = toggles[0];
+          log('Hittade toggle via klass: ' + toggleElement.className);
+          break;
+        }
+
+        var clickables = parent.querySelectorAll('div[role="button"], button, [onclick]');
+        for (var j = 0; j < clickables.length; j++) {
+          var rect = clickables[j].getBoundingClientRect();
+          if (rect.width > 20 && rect.height > 20) {
+            toggleElement = clickables[j];
+            log('Hittade toggle via klickbart element: ' + toggleElement.className);
+            break;
+          }
+        }
+
+        if (toggleElement) break;
+        parent = parent.parentElement;
+      }
+    }
+
+    if (toggleElement) {
+      var isActive = toggleElement.className.includes('active') ||
+                     toggleElement.className.includes('checked') ||
+                     toggleElement.className.includes('on') ||
+                     toggleElement.getAttribute('aria-checked') === 'true' ||
+                     toggleElement.getAttribute('data-checked') === 'true';
+
+      if (!isActive) {
+        log('✅ Aktiverar leveransskydd genom att klicka på toggle...');
+        toggleElement.click();
+        return true;
+      } else {
+        log('ℹ️ Leveransskydd är redan aktiverat');
+        return true;
+      }
+    } else {
+      log('❌ Kunde inte hitta toggle-element i ' + context);
+      return false;
+    }
+  }
+
+  function searchInIframes() {
+    var iframes = document.querySelectorAll('iframe');
+    log('Hittade ' + iframes.length + ' iframe(s)');
+
+    for (var i = 0; i < iframes.length; i++) {
+      try {
+        var iframeDoc = iframes[i].contentDocument || iframes[i].contentWindow.document;
+        if (iframeDoc) {
+          var found = enableShippingProtectionInDocument(iframeDoc, 'iframe #' + i);
+          if (found) {
+            return true;
+          }
+        }
+      } catch (e) {
+        log('Kan inte komma åt iframe #' + i + ' (CORS-skydd)');
+      }
+    }
+    return false;
+  }
+
+  function tryEnableShippingProtection() {
+    attemptCount++;
+    log('Försök #' + attemptCount + ' av ' + maxAttempts);
+
+    var foundInMain = enableShippingProtectionInDocument(document, 'huvuddokument');
+
+    if (!foundInMain) {
+      var foundInIframe = searchInIframes();
+
+      if (foundInIframe) {
+        log('✅ Leveransskydd aktiverat (hittades i iframe)!');
+        return true;
+      }
+    } else {
+      log('✅ Leveransskydd aktiverat (hittades i huvuddokument)!');
+      return true;
+    }
+
+    if (attemptCount < maxAttempts) {
+      setTimeout(tryEnableShippingProtection, 500);
+    } else {
+      log('⚠️ Gav upp efter ' + maxAttempts + ' försök. Leveransskydd kanske inte är tillgängligt?');
+    }
+
+    return false;
   }
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
-      setTimeout(enableShippingProtection, 500);
+      setTimeout(tryEnableShippingProtection, 500);
     });
   } else {
-    setTimeout(enableShippingProtection, 500);
+    setTimeout(tryEnableShippingProtection, 500);
   }
 
-  const observer = new MutationObserver(function(mutations) {
+  var observer = new MutationObserver(function(mutations) {
+    var shouldCheck = false;
+
     mutations.forEach(function(mutation) {
       if (mutation.addedNodes.length > 0) {
         mutation.addedNodes.forEach(function(node) {
           if (node.nodeType === 1) {
-            if (node.classList && (node.classList.contains('upcart-addons-toggle') ||
-                node.querySelector && node.querySelector('.upcart-addons-toggle'))) {
-              setTimeout(enableShippingProtection, 300);
+            var text = node.textContent || '';
+            if (text.includes('Leverans') || text.includes('skydd') ||
+                node.tagName === 'IFRAME' ||
+                (node.className && (node.className.includes('cart') ||
+                                   node.className.includes('Cart') ||
+                                   node.className.includes('upcart') ||
+                                   node.className.includes('Upcart')))) {
+              shouldCheck = true;
             }
           }
         });
       }
     });
+
+    if (shouldCheck) {
+      log('DOM-ändring detekterad, försöker aktivera leveransskydd...');
+      attemptCount = 0;
+      setTimeout(tryEnableShippingProtection, 300);
+    }
   });
 
   if (document.body) {
-    observer.observe(document.body, { childList: true, subtree: true });
-  } else {
-    document.addEventListener('DOMContentLoaded', function() {
-      observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
     });
   }
 })();
