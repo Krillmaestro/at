@@ -1,0 +1,74 @@
+<!-- Dual Announcement Bar för Shopify HTML Block -->
+<style>
+  .custom-announcement-wrapper {
+    width: 100%;
+    position: relative;
+    z-index: 100;
+  }
+
+  .custom-announcement-bar {
+    width: 100%;
+    padding: 16px 20px;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  /* Första announcement bar - Grön med Black Friday meddelande */
+  .custom-announcement-bar.primary {
+    background-color: #28FF1E;
+    color: #000000;
+    font-size: 18px;
+    padding: 20px 20px;
+  }
+
+  /* Andra announcement bar - Du kan anpassa denna efter behov */
+  .custom-announcement-bar.secondary {
+    background-color: #000000;
+    color: #ffffff;
+    font-size: 16px;
+    padding: 14px 20px;
+  }
+
+  .custom-announcement-text {
+    margin: 0;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* Responsiv design för mobil */
+  @media screen and (max-width: 768px) {
+    .custom-announcement-bar.primary {
+      font-size: 16px;
+      padding: 16px 15px;
+    }
+
+    .custom-announcement-bar.secondary {
+      font-size: 14px;
+      padding: 12px 15px;
+    }
+  }
+
+  @media screen and (max-width: 480px) {
+    .custom-announcement-bar.primary {
+      font-size: 14px;
+      padding: 14px 10px;
+    }
+
+    .custom-announcement-bar.secondary {
+      font-size: 13px;
+      padding: 10px 10px;
+    }
+  }
+</style>
+
+<div class="custom-announcement-wrapper">
+  <!-- Första Announcement Bar -->
+  <div class="custom-announcement-bar primary">
+    <p class="custom-announcement-text">Tidig Black Friday Rea Börjar Nu</p>
+  </div>
+
+  <!-- Andra Announcement Bar (Valfri - ändra text och färg efter behov) -->
+  <div class="custom-announcement-bar secondary">
+    <p class="custom-announcement-text">Fri Frakt På Alla Ordrar Över 500 kr</p>
+  </div>
+</div>
