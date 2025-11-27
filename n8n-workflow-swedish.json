@@ -1,0 +1,682 @@
+{
+  "meta": {
+    "instanceId": "c668632f5ca4908ffa76bd7bc9be05dec193c66269ed7a1160909b2e861050b7",
+    "templateCredsSetupCompleted": true
+  },
+  "nodes": [
+    {
+      "id": "00edb258-54e9-422e-a7a2-3aa33c0eb3d7",
+      "name": "Formulärinlämning",
+      "type": "n8n-nodes-base.formTrigger",
+      "position": [-2032, 560],
+      "webhookId": "lp-analyzer-form-001",
+      "parameters": {
+        "options": {},
+        "formTitle": "Gratis Landningssideanalys - Av Evervise",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Landningssidans URL",
+              "placeholder": "https://dinhemsida.se/landningssida",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Vilken bransch är du i?",
+              "placeholder": "t.ex. SaaS, E-handel, Fastigheter, Coaching"
+            },
+            {
+              "fieldType": "dropdown",
+              "fieldLabel": "Primärt mål med sidan",
+              "fieldOptions": {
+                "values": [
+                  { "option": "Generera leads" },
+                  { "option": "Öka försäljning" },
+                  { "option": "Få registreringar" },
+                  { "option": "Boka möten" },
+                  { "option": "Ladda ner resurs" },
+                  { "option": "Annat" }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Nuvarande konverteringsgrad (om känd)",
+              "placeholder": "t.ex. 2.5% eller 'Vet ej'"
+            },
+            {
+              "fieldType": "textarea",
+              "fieldLabel": "Största frustration med nuvarande sida",
+              "placeholder": "t.ex. Låga konverteringar, hög avvisningsfrekvens, otydligt budskap"
+            },
+            {
+              "fieldType": "email",
+              "fieldLabel": "Din e-post",
+              "placeholder": "din@epost.se",
+              "requiredField": true
+            }
+          ]
+        },
+        "formDescription": "Få en professionell landningssideanalys värd 20 000 kr på 90 sekunder. Drivs av 4 AI-specialister som analyserar design, copy, SEO och konverteringsstrategi."
+      },
+      "typeVersion": 2.3
+    },
+    {
+      "id": "7e2c45b5-dfd9-4a1d-9321-3658268a2281",
+      "name": "Initiera Variabler",
+      "type": "n8n-nodes-base.set",
+      "position": [-1792, 560],
+      "parameters": {
+        "options": {},
+        "assignments": {
+          "assignments": [
+            {
+              "id": "url",
+              "name": "landing_page_url",
+              "type": "string",
+              "value": "={{ $json['Landningssidans URL'] }}"
+            },
+            {
+              "id": "industry",
+              "name": "industry",
+              "type": "string",
+              "value": "={{ $json[\"Vilken bransch är du i?\"] || 'Generell' }}"
+            },
+            {
+              "id": "goal",
+              "name": "primary_goal",
+              "type": "string",
+              "value": "={{ $json['Primärt mål med sidan'] }}"
+            },
+            {
+              "id": "conv_rate",
+              "name": "current_conversion",
+              "type": "string",
+              "value": "={{ $json['Nuvarande konverteringsgrad (om känd)'] || 'Okänd' }}"
+            },
+            {
+              "id": "frustration",
+              "name": "biggest_frustration",
+              "type": "string",
+              "value": "={{ $json['Största frustration med nuvarande sida'] || 'Ej specificerat' }}"
+            },
+            {
+              "id": "email",
+              "name": "user_email",
+              "type": "string",
+              "value": "={{ $json['Din e-post'] }}"
+            },
+            {
+              "id": "timestamp",
+              "name": "analysis_timestamp",
+              "type": "string",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "typeVersion": 3.4
+    },
+    {
+      "id": "471cb0d7-1dc9-430b-8654-f3d98efdd6b3",
+      "name": "Hämta Sidans HTML",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [-1520, 480],
+      "parameters": {
+        "url": "={{ $json.landing_page_url }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "typeVersion": 4.1,
+      "continueOnFail": true
+    },
+    {
+      "id": "28c8b537-b38d-4db5-806b-f02f46a5baab",
+      "name": "Extrahera Sidelement",
+      "type": "n8n-nodes-base.code",
+      "position": [-1328, 480],
+      "parameters": {
+        "jsCode": "// Extrahera viktiga HTML-element för analys\nconst html = $json.body || '';\nconst url = $('Initiera Variabler').item.json.landing_page_url;\n\n// Extrahera titel\nconst titleMatch = html.match(/<title[^>]*>([^<]+)<\\/title>/i);\nconst pageTitle = titleMatch ? titleMatch[1].trim() : 'Ingen titel hittad';\n\n// Extrahera meta-beskrivning\nconst metaDescMatch = html.match(/<meta[^>]*name=[\"']description[\"'][^>]*content=[\"']([^\"']+)[\"']/i);\nconst metaDescription = metaDescMatch ? metaDescMatch[1] : 'Ingen meta-beskrivning';\n\n// Extrahera rubriker\nconst h1Matches = html.match(/<h1[^>]*>([^<]+)<\\/h1>/gi) || [];\nconst h1s = h1Matches.map(h => h.replace(/<[^>]*>/g, '').trim()).slice(0, 5);\n\nconst h2Matches = html.match(/<h2[^>]*>([^<]+)<\\/h2>/gi) || [];\nconst h2s = h2Matches.map(h => h.replace(/<[^>]*>/g, '').trim()).slice(0, 10);\n\n// Extrahera CTAs (knappar och länkar med vanlig CTA-text)\nconst ctaPattern = /(kom igång|köp nu|registrera|prenumerera|ladda ner|läs mer|kontakta|boka|testa|starta|gå med|beställ|få|prova)/gi;\nconst buttonMatches = html.match(/<button[^>]*>([^<]+)<\\/button>/gi) || [];\nconst linkMatches = html.match(/<a[^>]*>([^<]+)<\\/a>/gi) || [];\nconst allCTAs = [...buttonMatches, ...linkMatches]\n  .map(cta => cta.replace(/<[^>]*>/g, '').trim())\n  .filter(text => ctaPattern.test(text))\n  .slice(0, 10);\n\n// Räkna formulär\nconst formCount = (html.match(/<form/gi) || []).length;\n\n// Kolla efter vanliga ramverk/verktyg\nconst hasReact = html.includes('react');\nconst hasBootstrap = html.includes('bootstrap');\nconst hasTailwind = html.includes('tailwind');\nconst hasGA = html.includes('google-analytics') || html.includes('gtag');\nconst hasFBPixel = html.includes('facebook');\n\n// Extrahera ordantal (ungefärlig uppskattning)\nconst textContent = html.replace(/<script[^>]*>.*?<\\/script>/gi, '')\n  .replace(/<style[^>]*>.*?<\\/style>/gi, '')\n  .replace(/<[^>]*>/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\nconst wordCount = textContent.split(/\\s+/).length;\n\n// Kolla mobil viewport\nconst hasMobileViewport = html.includes('viewport');\n\n// Extrahera bilder\nconst imgMatches = html.match(/<img[^>]*>/gi) || [];\nconst imageCount = imgMatches.length;\nconst hasAltTags = imgMatches.filter(img => /alt=[\"'][^\"']+[\"']/i.test(img)).length;\n\nreturn {\n  url: url,\n  page_title: pageTitle,\n  meta_description: metaDescription,\n  h1_headings: h1s,\n  h2_headings: h2s,\n  cta_buttons: allCTAs,\n  form_count: formCount,\n  word_count: wordCount,\n  image_count: imageCount,\n  images_with_alt: hasAltTags,\n  has_mobile_viewport: hasMobileViewport,\n  detected_tech: {\n    react: hasReact,\n    bootstrap: hasBootstrap,\n    tailwind: hasTailwind,\n    google_analytics: hasGA,\n    facebook_pixel: hasFBPixel\n  },\n  html_preview: html.substring(0, 3000),\n  analysis_ready: true\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "ad942109-b994-4402-b0ec-3899b1b38c40",
+      "name": "Designkritiker Modell",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [-960, 784],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {
+          "topP": 0.9,
+          "temperature": 0.4
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "rFsH3A7ko19Tb8xL",
+          "name": "Anthropic account"
+        }
+      },
+      "typeVersion": 1.3
+    },
+    {
+      "id": "fc5bc3ff-5a5b-4740-a9d3-bb57f4ae46e6",
+      "name": "Copywriter Modell",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [-512, 784],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {
+          "topP": 0.9,
+          "temperature": 0.5
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "rFsH3A7ko19Tb8xL",
+          "name": "Anthropic account"
+        }
+      },
+      "typeVersion": 1.3
+    },
+    {
+      "id": "89e26ce8-fd3b-446b-829a-2b12bc0f00b3",
+      "name": "SEO-specialist Modell",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [-128, 816],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {
+          "topP": 0.85,
+          "temperature": 0.3
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "rFsH3A7ko19Tb8xL",
+          "name": "Anthropic account"
+        }
+      },
+      "typeVersion": 1.3
+    },
+    {
+      "id": "ee0f74d0-a91b-4eb3-8aee-4c548fd95764",
+      "name": "Tillväxtstrateg Modell",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "position": [272, 784],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {
+          "topP": 0.95,
+          "temperature": 0.6
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "rFsH3A7ko19Tb8xL",
+          "name": "Anthropic account"
+        }
+      },
+      "typeVersion": 1.3
+    },
+    {
+      "id": "23de0e39-87ed-4eb5-9361-ea79bc6f1112",
+      "name": "Agent 1: Designkritiker",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [-928, 544],
+      "parameters": {
+        "text": "=Landningssidedata:\n- URL: {{ $('Extrahera Sidelement').item.json.url }}\n- Bransch: {{ $('Initiera Variabler').item.json.industry }}\n- Mål: {{ $('Initiera Variabler').item.json.primary_goal }}\n- Titel: {{ $('Extrahera Sidelement').item.json.page_title }}\n- H1-rubriker: {{ JSON.stringify($('Extrahera Sidelement').item.json.h1_headings) }}\n- CTA-knappar: {{ JSON.stringify($('Extrahera Sidelement').item.json.cta_buttons) }}\n- Antal formulär: {{ $('Extrahera Sidelement').item.json.form_count }}\n- Antal bilder: {{ $('Extrahera Sidelement').item.json.image_count }}\n- Bilder med alt-taggar: {{ $('Extrahera Sidelement').item.json.images_with_alt }}\n- Mobil viewport: {{ $('Extrahera Sidelement').item.json.has_mobile_viewport }}\n- Upptäckt teknik: {{ JSON.stringify($('Extrahera Sidelement').item.json.detected_tech) }}\n\nAnalysera denna landningssida ur ett DESIGN- och ANVÄNDARUPPLEVELSE-perspektiv.\n\nGe detaljerad feedback på:\n1. Visuell hierarki och layout\n2. CTA-design och placering\n3. Användning av whitespace\n4. Färgschemats effektivitet\n5. Mobilresponsivitetsindikatorer\n6. Förtroendesignaler (omdömen, certifikat, etc.)\n7. Innehåll ovanför vikningen\n8. Övergripande designsammanhållning\n\nPoängsätt varje område 0-10 och ge specifika förbättringsrekommendationer.",
+        "options": {
+          "systemMessage": "Du är en senior UX/UI-designer och konverteringsoptimeringsexpert med 15+ års erfarenhet av att analysera landningssidor.\n\nDu utvärderar sidor baserat på:\n- Visuell hierarki (F-mönster, Z-mönster)\n- CTA-prominens och tydlighet\n- Färgpsykologi för branschen\n- Förtroendindikatorer och social proof-placering\n- Mobile-first designprinciper\n- Whitespace och andrum\n- Professionell finish vs. amatörmisstag\n\nPresentera din analys i denna struktur:\n\n📊 DESIGNPOÄNG (0-10 vardera):\n- Visuell hierarki: X/10\n- CTA-design: X/10\n- Mobilresponsivitet: X/10\n- Förtroendesignaler: X/10\n- Professionell finish: X/10\n\n🎨 HUVUDSAKLIGA INSIKTER:\n[3-5 punkter om huvudsakliga designproblem eller styrkor]\n\n🔥 KRITISKA DESIGNBRISTER:\n[Lista eventuella avgörande designproblem]\n\n✨ SNABBA VINSTER:\n[3-5 enkla designförbättringar som skulle ha omedelbar effekt]\n\n💡 AVANCERADE REKOMMENDATIONER:\n[Större strategiska designförslag]\n\nVar specifik, ärlig och konstruktiv. Referera till faktiska element från den tillhandahållna siddatan."
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 2.2
+    },
+    {
+      "id": "71d7715f-49ec-42a8-9b38-24a5f2a81cf0",
+      "name": "Agent 2: Copywriter",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [-528, 544],
+      "parameters": {
+        "text": "=Landningssidedata:\n- URL: {{ $('Extrahera Sidelement').item.json.url }}\n- Bransch: {{ $('Initiera Variabler').item.json.industry }}\n- Mål: {{ $('Initiera Variabler').item.json.primary_goal }}\n- Titel: {{ $('Extrahera Sidelement').item.json.page_title }}\n- Meta-beskrivning: {{ $('Extrahera Sidelement').item.json.meta_description }}\n- H1-rubriker: {{ JSON.stringify($('Extrahera Sidelement').item.json.h1_headings) }}\n- H2-rubriker: {{ JSON.stringify($('Extrahera Sidelement').item.json.h2_headings) }}\n- CTA-knappar: {{ JSON.stringify($('Extrahera Sidelement').item.json.cta_buttons) }}\n- Ordantal: {{ $('Extrahera Sidelement').item.json.word_count }}\n\nAnalysera denna landningssida ur ett COPYWRITING- och BUDSKAPS-perspektiv.\n\nGe detaljerad feedback på:\n1. Rubrikens effektivitet (fångar den uppmärksamhet?)\n2. Värdeerbjudandets tydlighet\n3. Fokus på fördelar vs. funktioner\n4. Emotionella triggers och övertalning\n5. CTA-text (är den övertygande?)\n6. Övergripande budskapsklarhet\n7. Röst och ton för branschen\n8. Skumbarhet och läsbarhet\n\nPoängsätt varje område 0-10 och ge specifika textförbättringar.",
+        "options": {
+          "systemMessage": "Du är en världsledande copywriter och konverteringsexpert specialiserad på landningssidor.\n\nDu utvärderar copy baserat på:\n- Rubrikformler (nyfikenhet, nytta, brådska)\n- Värdeerbjudandets tydlighet (kan en 5-åring förstå det?)\n- Fördelsfokuserat språk vs. funktionsdumpning\n- Emotionella triggers (rädsla, önskan, nyfikenhet, tillhörighet)\n- CTA-psykologi (handlingsorienterad, värdedriven)\n- Läsbarhet (meningslängd, enkelt språk)\n- Röst & ton-matchning mot målgruppen\n- Invändningshantering\n\nPresentera din analys i denna struktur:\n\n📊 COPYPOÄNG (0-10 vardera):\n- Rubrikens genomslag: X/10\n- Värdeerbjudandets tydlighet: X/10\n- Fördelsfokus: X/10\n- CTA-effektivitet: X/10\n- Övergripande övertygelse: X/10\n\n✍️ HUVUDSAKLIGA INSIKTER:\n[3-5 punkter om huvudsakliga copyproblem eller styrkor]\n\n🚨 KRITISKA COPYPROBLEM:\n[Lista eventuella avgörande budskapsbrister]\n\n⚡ SNABBA TEXTFIXAR:\n[3-5 enkla omskrivningar som skulle öka konverteringarna]\n\n🎯 OMSKRIVNINGSFÖRSLAG:\n[Ge specifika alternativ för rubriker och CTA:er]\n\n💬 BUDSKAPPSSTRATEGI:\n[Övergripande approach för att förbättra övertalningen]\n\nVar specifik och ge faktiska omskrivningsexempel. Referera till mål- och branschkontexten."
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 2.2
+    },
+    {
+      "id": "8eab43b8-deb2-440a-9836-b52f7ae5f7fa",
+      "name": "Agent 3: SEO & Teknisk",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [-128, 544],
+      "parameters": {
+        "text": "=Landningssidedata:\n- URL: {{ $('Extrahera Sidelement').item.json.url }}\n- Titel: {{ $('Extrahera Sidelement').item.json.page_title }}\n- Meta-beskrivning: {{ $('Extrahera Sidelement').item.json.meta_description }}\n- Antal H1: {{ $('Extrahera Sidelement').item.json.h1_headings.length }}\n- Ordantal: {{ $('Extrahera Sidelement').item.json.word_count }}\n- Antal bilder: {{ $('Extrahera Sidelement').item.json.image_count }}\n- Bilder med alt: {{ $('Extrahera Sidelement').item.json.images_with_alt }}\n- Mobil viewport: {{ $('Extrahera Sidelement').item.json.has_mobile_viewport }}\n- Har Analytics: {{ $('Extrahera Sidelement').item.json.detected_tech.google_analytics }}\n\nAnalysera denna landningssida ur ett SEO- och TEKNISKT perspektiv.\n\nGe detaljerad feedback på:\n1. Titeltagg-optimering\n2. Meta-beskrivningens kvalitet\n3. Rubrikstruktur (H1, H2-hierarki)\n4. Bildoptimering (alt-taggar)\n5. Mobilvänlighet\n6. Sidhastighetsindikatorer\n7. Analytics-spårning\n8. Teknisk SEO-grund\n\nPoängsätt varje område 0-10 och ge specifika tekniska förbättringar.",
+        "options": {
+          "systemMessage": "Du är en teknisk SEO-expert och webbprestanda-specialist.\n\nDu utvärderar sidor baserat på:\n- On-page SEO-grunder\n- Titeltagg-best practices (50-60 tecken, sökordplacering)\n- Meta-beskrivningsoptimering (150-160 tecken)\n- Korrekt rubrikhierarki\n- Bildoptimering (alt-taggar, lazy loading)\n- Mobile-first indexeringskrav\n- Core Web Vitals\n- Analytics och spårningssetup\n- Tillgänglighetsstandarder\n\nPresentera din analys i denna struktur:\n\n📊 SEO & TEKNISKA POÄNG (0-10 vardera):\n- Titeltagg-optimering: X/10\n- Meta-beskrivning: X/10\n- Rubrikstruktur: X/10\n- Bildoptimering: X/10\n- Mobilberedskap: X/10\n- Teknisk hälsa: X/10\n\n🔍 HUVUDSAKLIGA INSIKTER:\n[3-5 punkter om huvudsakliga SEO/tekniska problem]\n\n⚠️ KRITISKA SEO-PROBLEM:\n[Lista eventuella röda flaggor som skadar rankningar]\n\n⚡ SNABBA TEKNISKA VINSTER:\n[3-5 enkla fixar för omedelbar SEO-förbättring]\n\n🛠️ TEKNISKA REKOMMENDATIONER:\n[Djupare tekniska förbättringar]\n\n📈 SEO-STRATEGI:\n[Övergripande approach för att förbättra söksynlighet]\n\nVar specifik och handlingsorienterad. Ange exakta teckenantal för meta-element."
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 2.2
+    },
+    {
+      "id": "51e1e27e-1a9d-46a6-be24-6d0cc1325fc1",
+      "name": "Agent 4: Tillväxtstrateg",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [272, 544],
+      "parameters": {
+        "text": "=Ursprunglig förfrågan:\n- Bransch: {{ $('Initiera Variabler').item.json.industry }}\n- Mål: {{ $('Initiera Variabler').item.json.primary_goal }}\n- Nuvarande konvertering: {{ $('Initiera Variabler').item.json.current_conversion }}\n- Största frustration: {{ $('Initiera Variabler').item.json.biggest_frustration }}\n\nDesignanalys:\n{{ $('Agent 1: Designkritiker').item.json.output }}\n\nCopyanalys:\n{{ $('Agent 2: Copywriter').item.json.output }}\n\nSEO-analys:\n{{ $('Agent 3: SEO & Teknisk').item.json.output }}\n\nSom tillväxtstrateg, syntetisera alla analyser och ge:\n1. Övergripande landningssidebetyg (A+ till F) med förklaring\n2. Topp 5 prioriteringar rankade efter påverkan\n3. Uppskattad konverteringslyftspotential\n4. Strategiska rekommendationer\n5. Omfattande poängkort över alla dimensioner\n\nVar brutalt ärlig men konstruktiv.",
+        "options": {
+          "systemMessage": "Du är en tillväxtstrateg och konverteringsoptimeringsexpert (CRO) som syntetiserar design-, copy- och tekniska insikter till handlingskraftig affärsstrategi.\n\nDitt jobb är att:\n- Tilldela ett övergripande betyg (A+ till F) baserat på all agentfeedback\n- Prioritera förbättringar efter ROI (påverkan vs. insats)\n- Uppskatta realistisk konverteringslyftspotential\n- Ge strategiska, affärsfokuserade rekommendationer\n- Skapa ett balanserat poängkort\n\nPresentera din analys i denna EXAKTA struktur:\n\n🎯 ÖVERGRIPANDE LANDNINGSSIDEBETYG\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\nBetyg: [A+, A, A-, B+, B, B-, C+, C, C-, D, F]\nPoäng: X/100\n\n[2-3 meningars förklaring av betyget]\n\n📊 OMFATTANDE POÄNGKORT\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nDesign & UX: X/10\n[Kort motivering]\n\nCopywriting & Budskap: X/10\n[Kort motivering]\n\nSEO & Teknik: X/10\n[Kort motivering]\n\nKonverteringspotential: X/10\n[Kort motivering]\n\nMobilupplevelse: X/10\n[Kort motivering]\n\nFörtroende & Trovärdighet: X/10\n[Kort motivering]\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n🔥 TOPP 5 PRIORITERINGAR (Rankade efter påverkan)\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n1. [Prioritering 1]\n   Påverkan: [Hög/Medel/Låg] | Insats: [Enkel/Medel/Svår]\n   Förväntat lyft: X-Y%\n   [Varför detta är viktigt]\n\n2. [Prioritering 2]\n   Påverkan: [Hög/Medel/Låg] | Insats: [Enkel/Medel/Svår]\n   Förväntat lyft: X-Y%\n   [Varför detta är viktigt]\n\n[... fortsätt för alla 5]\n\n📈 KONVERTERINGSLYFTSPOTENTIAL\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nKonservativ uppskattning: +X%\nRealistiskt mål: +Y%\nOptimistiskt scenario: +Z%\n\n[2-3 meningar som förklarar grunden för dessa uppskattningar]\n\n💪 HUVUDSTYRKOR\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n• [Styrka 1]\n• [Styrka 2]\n• [Styrka 3]\n\n⚠️ KRITISKA SVAGHETER\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n• [Svaghet 1]\n• [Svaghet 2]\n• [Svaghet 3]\n\n🚀 STRATEGISKA REKOMMENDATIONER\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n[3-5 stycken med strategiska, övergripande rekommendationer som knyter ihop allt]\n\n💡 NÄSTA STEG\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n1. [Omedelbar åtgärd]\n2. [Kortsiktig förbättring]\n3. [Långsiktig strategi]\n\nVar ärlig men motiverande. Fokusera på affärsresultat, inte bara mätvärden."
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 2.2
+    },
+    {
+      "id": "49410bcd-f4c6-4756-8a68-0928795bb198",
+      "name": "Formatera E-postrapport",
+      "type": "n8n-nodes-base.code",
+      "position": [592, 544],
+      "parameters": {
+        "jsCode": "// Formatera den omfattande e-postrapporten\nconst designAnalysis = $('Agent 1: Designkritiker').item.json.output;\nconst copyAnalysis = $('Agent 2: Copywriter').item.json.output;\nconst seoAnalysis = $('Agent 3: SEO & Teknisk').item.json.output;\nconst strategyAnalysis = $('Agent 4: Tillväxtstrateg').item.json.output;\n\nconst userData = $('Initiera Variabler').item.json;\nconst pageData = $('Extrahera Sidelement').item.json;\n\n// Extrahera betyg och poäng från strategianalysen\nconst gradeMatch = strategyAnalysis.match(/Betyg:\\s*([A-F][+-]?)/i);\nconst grade = gradeMatch ? gradeMatch[1] : 'N/A';\n\nconst scoreMatch = strategyAnalysis.match(/Poäng:\\s*(\\d+)\\/100/i);\nconst score = scoreMatch ? scoreMatch[1] : '0';\n\n// Bestäm betygsfärg\nconst getGradeColor = (grade) => {\n  if (grade.startsWith('A')) return '#28a745';\n  if (grade.startsWith('B')) return '#17a2b8';\n  if (grade.startsWith('C')) return '#ffc107';\n  if (grade.startsWith('D')) return '#fd7e14';\n  return '#dc3545';\n};\n\nconst gradeColor = getGradeColor(grade);\n\n// Formatera sektioner för e-post\nconst formatSection = (content, title, icon, color) => {\n  return `\n    <div style=\"margin: 30px 0; padding: 20px; background: #f8f9fa; border-left: 4px solid ${color}; border-radius: 4px;\">\n      <h2 style=\"margin: 0 0 15px 0; color: ${color}; font-size: 20px;\">${icon} ${title}</h2>\n      <div style=\"white-space: pre-line; line-height: 1.8; color: #333;\">${content}</div>\n    </div>\n  `;\n};\n\nconst emailHtml = `\n<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<style>\n  body { \n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;\n    line-height: 1.6; \n    color: #333; \n    background: #f5f5f5; \n    margin: 0;\n    padding: 0;\n  }\n  .container { \n    max-width: 800px; \n    margin: 0 auto; \n    background: white;\n  }\n  .header { \n    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n    color: white; \n    padding: 40px 30px; \n    text-align: center;\n  }\n  .header h1 { \n    margin: 0; \n    font-size: 32px; \n    font-weight: 700;\n  }\n  .header p { \n    margin: 10px 0 0 0; \n    opacity: 0.95;\n    font-size: 16px;\n  }\n  .grade-banner {\n    background: white;\n    text-align: center;\n    padding: 40px 20px;\n    border-bottom: 2px solid #e9ecef;\n  }\n  .grade-circle {\n    width: 180px;\n    height: 180px;\n    border-radius: 50%;\n    border: 8px solid ${gradeColor};\n    display: inline-flex;\n    flex-direction: column;\n    align-items: center;\n    justify-content: center;\n    margin-bottom: 20px;\n  }\n  .grade-letter {\n    font-size: 72px;\n    font-weight: 700;\n    color: ${gradeColor};\n    line-height: 1;\n  }\n  .grade-score {\n    font-size: 20px;\n    color: #6c757d;\n    margin-top: 5px;\n  }\n  .content { \n    padding: 30px;\n  }\n  .cta-box {\n    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n    color: white;\n    padding: 40px;\n    text-align: center;\n    margin: 40px 0;\n    border-radius: 8px;\n  }\n  .cta-box h2 {\n    margin: 0 0 15px 0;\n    font-size: 28px;\n  }\n  .cta-box p {\n    margin: 0 0 25px 0;\n    font-size: 18px;\n    opacity: 0.95;\n  }\n  .cta-button {\n    display: inline-block;\n    background: white;\n    color: #667eea;\n    padding: 15px 40px;\n    text-decoration: none;\n    border-radius: 6px;\n    font-weight: 700;\n    font-size: 18px;\n    transition: transform 0.2s;\n  }\n  .cta-button:hover {\n    transform: translateY(-2px);\n  }\n  .footer { \n    background: #2c3e50;\n    color: white;\n    padding: 30px;\n    text-align: center;\n  }\n  .footer p {\n    margin: 10px 0;\n    opacity: 0.9;\n  }\n  .footer a {\n    color: #3498db;\n    text-decoration: none;\n  }\n  @media only screen and (max-width: 600px) {\n    .header h1 { font-size: 24px; }\n    .grade-circle { width: 150px; height: 150px; }\n    .grade-letter { font-size: 60px; }\n    .content { padding: 20px; }\n  }\n</style>\n</head>\n<body>\n<div class=\"container\">\n  <!-- Header -->\n  <div class=\"header\">\n    <h1>Din Landningssideanalys</h1>\n    <p>Professionell analys från 4 AI-specialister</p>\n    <p style=\"font-size: 14px; margin-top: 15px; opacity: 0.8;\">${new Date().toLocaleDateString('sv-SE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>\n  </div>\n  \n  <!-- Betygsbanderoll -->\n  <div class=\"grade-banner\">\n    <div class=\"grade-circle\">\n      <div class=\"grade-letter\">${grade}</div>\n      <div class=\"grade-score\">${score}/100</div>\n    </div>\n    <h2 style=\"margin: 0; color: #2c3e50;\">Landningssida: ${pageData.page_title}</h2>\n    <p style=\"color: #6c757d; margin: 10px 0 0 0;\">${userData.landing_page_url}</p>\n    <p style=\"color: #6c757d; margin: 5px 0 0 0;\">Bransch: ${userData.industry} | Mål: ${userData.primary_goal}</p>\n  </div>\n  \n  <!-- Innehåll -->\n  <div class=\"content\">\n    <!-- Strategisk översikt -->\n    ${formatSection(strategyAnalysis, 'Strategisk Översikt & Poängkort', '🚀', '#667eea')}\n    \n    <!-- Designanalys -->\n    ${formatSection(designAnalysis, 'Design & Användarupplevelse-analys', '🎨', '#e74c3c')}\n    \n    <!-- Copyanalys -->\n    ${formatSection(copyAnalysis, 'Copywriting & Budskapanalys', '✍️', '#3498db')}\n    \n    <!-- SEO-analys -->\n    ${formatSection(seoAnalysis, 'SEO & Teknisk Analys', '🔍', '#2ecc71')}\n    \n    <!-- CTA-box -->\n    <div class=\"cta-box\">\n      <h2>Vill du att vi fixar det åt dig?</h2>\n      <p>Vårt expertteam kan implementera alla dessa rekommendationer och öka dina konverteringar.</p>\n      <a href=\"https://evervise.com/landningssideoptimering\" class=\"cta-button\">Få en offert →</a>\n      <p style=\"font-size: 14px; margin-top: 20px;\">Eller boka ett gratis 30-minuters strategisamtal</p>\n    </div>\n    \n    <!-- Vad händer nu -->\n    <div style=\"background: #fff3cd; padding: 25px; border-left: 4px solid #ffc107; border-radius: 4px; margin: 30px 0;\">\n      <h3 style=\"margin: 0 0 15px 0; color: #856404;\">📋 Vad du ska göra med denna rapport</h3>\n      <ol style=\"margin: 0; padding-left: 20px; color: #856404;\">\n        <li style=\"margin: 10px 0;\"><strong>Börja med snabba vinster:</strong> Implementera de enkla förbättringarna först för omedelbara resultat</li>\n        <li style=\"margin: 10px 0;\"><strong>Prioritera efter påverkan:</strong> Fokusera på TOPP 5 PRIORITERINGARNA i den strategiska översikten</li>\n        <li style=\"margin: 10px 0;\"><strong>Spåra resultat:</strong> Mät konverteringsgraden före och efter varje förändring</li>\n        <li style=\"margin: 10px 0;\"><strong>Behöver du hjälp?</strong> Vårt team kan hantera all implementering och testning åt dig</li>\n      </ol>\n    </div>\n    \n    <!-- Sidstatistik -->\n    <div style=\"background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 30px 0;\">\n      <h3 style=\"margin: 0 0 15px 0; color: #495057;\">📊 Sidstatistik</h3>\n      <div style=\"display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;\">\n        <div>\n          <strong>Totalt antal ord:</strong> ${pageData.word_count.toLocaleString('sv-SE')}<br>\n          <strong>Hittade CTA:er:</strong> ${pageData.cta_buttons.length}<br>\n          <strong>Formulär:</strong> ${pageData.form_count}\n        </div>\n        <div>\n          <strong>Bilder:</strong> ${pageData.image_count}<br>\n          <strong>Med alt-taggar:</strong> ${pageData.images_with_alt}<br>\n          <strong>Mobil viewport:</strong> ${pageData.has_mobile_viewport ? 'Ja ✅' : 'Nej ❌'}\n        </div>\n      </div>\n    </div>\n  </div>\n  \n  <!-- Footer -->\n  <div class=\"footer\">\n    <h3 style=\"margin: 0 0 15px 0; color: white;\">Evervise - Digital Marknadsföring & Automationsexperter</h3>\n    <p>Denna analys genererades automatiskt av vår AI-drivna landningssideanalysator.</p>\n    <p>Vi specialiserar oss på landningssideoptimering, automation och digital transformation.</p>\n    <p style=\"margin-top: 25px;\">\n      <a href=\"https://evervise.com\">Besök vår hemsida</a> | \n      <a href=\"https://evervise.com/kontakt\">Kontakta oss</a> | \n      <a href=\"https://evervise.com/tjanster\">Våra tjänster</a>\n    </p>\n    <p style=\"font-size: 12px; margin-top: 25px; opacity: 0.7;\">\n      © ${new Date().getFullYear()} Evervise. Alla rättigheter förbehållna.\n    </p>\n  </div>\n</div>\n</body>\n</html>\n`;\n\n// Skapa även JSON för dashboard-webhook\nconst dashboardData = {\n  analysis_id: Date.now().toString(),\n  url: userData.landing_page_url,\n  email: userData.user_email,\n  industry: userData.industry,\n  primary_goal: userData.primary_goal,\n  current_conversion: userData.current_conversion,\n  biggest_frustration: userData.biggest_frustration,\n  timestamp: userData.analysis_timestamp,\n  page_data: {\n    title: pageData.page_title,\n    meta_description: pageData.meta_description,\n    h1_headings: pageData.h1_headings,\n    h2_headings: pageData.h2_headings,\n    cta_buttons: pageData.cta_buttons,\n    form_count: pageData.form_count,\n    word_count: pageData.word_count,\n    image_count: pageData.image_count,\n    images_with_alt: pageData.images_with_alt,\n    has_mobile_viewport: pageData.has_mobile_viewport,\n    detected_tech: pageData.detected_tech\n  },\n  results: {\n    grade: grade,\n    score: parseInt(score),\n    design_analysis: designAnalysis,\n    copy_analysis: copyAnalysis,\n    seo_analysis: seoAnalysis,\n    strategy_analysis: strategyAnalysis\n  }\n};\n\nreturn {\n  email_html: emailHtml,\n  email_subject: `Din landningssida fick betyget ${grade} (${score}/100) - ${pageData.page_title}`,\n  user_email: userData.user_email,\n  grade: grade,\n  score: score,\n  url: userData.landing_page_url,\n  timestamp: userData.analysis_timestamp,\n  dashboard_data: dashboardData\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "19a16469-6dc1-412c-9bbc-b0f1fe5f8d3d",
+      "name": "Skicka E-postrapport",
+      "type": "n8n-nodes-base.gmail",
+      "position": [832, 544],
+      "webhookId": "f9ff0b16-ca94-48ba-9ad7-a34cdfaa221b",
+      "parameters": {
+        "sendTo": "={{ $json.user_email }}",
+        "message": "={{ $json.email_html }}",
+        "options": {},
+        "subject": "={{ $json.email_subject }}"
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bq6dHs6Lgfuy6wjr",
+          "name": "Sofia Wagner"
+        }
+      },
+      "typeVersion": 2.1
+    },
+    {
+      "id": "webhook-to-dashboard",
+      "name": "Skicka till Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [832, 720],
+      "parameters": {
+        "url": "={{ $env.DASHBOARD_WEBHOOK_URL || 'https://din-app.vercel.app/api/audit-webhook' }}",
+        "method": "POST",
+        "options": {},
+        "jsonBody": "={{ JSON.stringify($json.dashboard_data) }}",
+        "sendBody": true,
+        "specifyBody": "json"
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "0bb1744e-ecba-4678-9c94-394b032dccb0",
+      "name": "Workflow Översikt",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-2512, 336],
+      "parameters": {
+        "color": 6,
+        "width": 380,
+        "height": 448,
+        "content": "## 📋 WORKFLOW ÖVERSIKT\n**AI Landningssideanalysator & Optimerare**\n\n⏱️ **Prestanda:**\n- Snitt genomförande: 60-90 sekunder\n- 4 AI-agenter arbetar parallellt\n- Kostnad per analys: ~$0.15-0.25\n\n🎯 **Konverteringstratt:**\n- Gratis: Full analysrapport\n- Betald Nivå 1 (2 997 kr): Vi fixar det\n- Betald Nivå 2 (9 997 kr): Fix + A/B-testning\n- Enterprise: Fullt optimeringsprogram\n\n💡 **Optimeringsidéer:**\n- Lägg till skärmdumpsfångst (UrlBox API)\n- Generera visuella mockups (v2)\n- A/B-testa olika e-postformat\n- Spåra vilka rekommendationer som implementeras"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "c28e0d4d-2cae-4706-a3df-a87079174761",
+      "name": "Formulärsektion",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-2048, 144],
+      "parameters": {
+        "color": 7,
+        "width": 380,
+        "height": 348,
+        "content": "## 📝 FORMULÄRINSAMLING\n**Användaren skickar in landningssida för analys**\n\n✨ **Anpassningsmöjligheter:**\n- Lägg till företagsstorleksfält\n- Lägg till budget/prisnivåväljare\n- Kräv telefon för högintentionsleads\n- Lägg till \"Hur hörde du talas om oss?\"\n\n🎨 **Designtips:**\n- Håll det enkelt (max 6 fält)\n- Använd dropdown för mål (minskar friktion)\n- Gör konverteringsgrad valfri\n- E-post är det enda hårda kravet"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "c6fd62f6-b133-4a1c-85fa-6025f54efd71",
+      "name": "Skrapningssektion",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-1536, 0],
+      "parameters": {
+        "color": 7,
+        "width": 380,
+        "height": 412,
+        "content": "## 🌐 WEBBSKRAPNING\n**Extraherar sidinnehåll för analys**\n\n⚙️ **Vad den gör:**\n- Hämtar HTML från landningssidan\n- Extraherar rubriker, CTA:er, formulär\n- Räknar bilder och kollar alt-taggar\n- Detekterar mobil viewport\n- Identifierar ramverk/verktyg\n\n💡 **Förbättringsidéer:**\n- Lägg till skärmdumpsfångst (UrlBox/Puppeteer)\n- Extrahera CSS för färganalys\n- Kolla sidladdningshastighet\n- Skanna efter trasiga länkar\n- Använd Apify Crawler eller Crawl4AI (finns nedan) - Du kan använda rå output för dessa"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "cff336b5-d8d0-42fb-8a5b-077bfc851641",
+      "name": "Agent 1 Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-1008, 16],
+      "parameters": {
+        "color": 7,
+        "width": 336,
+        "height": 452,
+        "content": "## 🤖 AGENT 1: Designkritiker\n**UX/UI-analysexpert**\n\n🎨 **Fokusområden:**\n- Visuell hierarki\n- CTA-placering & design\n- Whitespace-användning\n- Förtroendesignaler\n- Mobilresponsivitet\n\n⚙️ **Modellinställningar:**\n- Temperatur: 0.4 (balanserad)\n- Kreativ men konsekvent\n\n📊 **Output:**\n- 5 designpoäng (0-10)\n- Kritiska brister\n- Snabba vinster\n- Avancerade rekommendationer"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "8118065f-3628-4c23-bbc1-ef38da849ac1",
+      "name": "Agent 2 Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-592, 16],
+      "parameters": {
+        "color": 7,
+        "width": 320,
+        "height": 452,
+        "content": "## 🤖 AGENT 2: Copywriter\n**Budskaps- & övertalningsexpert**\n\n✍️ **Fokusområden:**\n- Rubrikens effektivitet\n- Värdeerbjudandets tydlighet\n- Fördelar vs funktioner\n- CTA-textens styrka\n- Emotionella triggers\n\n⚙️ **Modellinställningar:**\n- Temperatur: 0.5 (kreativ)\n- Utmärkt för copyidéer\n\n📊 **Output:**\n- 5 copypoäng (0-10)\n- Omskrivningsförslag\n- Specifika alternativ\n- Budskappsstrategi"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "a1e78d0d-7668-4dc0-ad88-0f54ff3e40fb",
+      "name": "Agent 3 Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-176, -16],
+      "parameters": {
+        "color": 7,
+        "width": 320,
+        "height": 500,
+        "content": "## 🤖 AGENT 3: SEO-specialist\n**Teknisk & sökoptimering**\n\n🔍 **Fokusområden:**\n- Titeltagg-optimering\n- Meta-beskrivning\n- Rubrikstruktur\n- Bildoptimering\n- Mobilvänlighet\n- Analytics-spårning\n\n⚙️ **Modellinställningar:**\n- Temperatur: 0.3 (precis)\n- Teknisk noggrannhet kritisk\n\n📊 **Output:**\n- 6 tekniska poäng (0-10)\n- Kritiska SEO-problem\n- Snabba tekniska vinster\n- SEO-strategi"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "859c9e16-1ac4-42a0-8d09-30fdaafd53bb",
+      "name": "Agent 4 Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [208, -16],
+      "parameters": {
+        "color": 7,
+        "width": 360,
+        "height": 500,
+        "content": "## 🤖 AGENT 4: Tillväxtstrateg\n**Syntes & strategiska rekommendationer**\n\n🚀 **Ansvar:**\n- Tilldela övergripande betyg (A-F)\n- Skapa omfattande poängkort\n- Ranka topp 5 prioriteringar\n- Uppskatta konverteringslyft\n- Strategiska rekommendationer\n\n⚙️ **Modellinställningar:**\n- Temperatur: 0.6 (strategiskt tänkande)\n- Balanserar alla inputs\n\n📊 **Output:**\n- Övergripande betyg & poäng (/100)\n- 6-dimensionellt poängkort\n- Prioriterade åtgärder\n- Konverteringslyftuppskattningar\n- Strategisk färdplan"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "ac9f53db-4ab1-44d9-af00-96a26c39c445",
+      "name": "E-postsektion",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [1040, 368],
+      "parameters": {
+        "color": 7,
+        "width": 340,
+        "height": 468,
+        "content": "## 📧 E-POSTLEVERANS\n**Snygg HTML-rapport**\n\n🎨 **E-posten innehåller:**\n- Betygsbanderoll med poäng\n- Alla 4 agentanalyser\n- Omfattande poängkort\n- Sidstatistik\n- Tydlig CTA till betalda tjänster\n\n💡 **Anpassning:**\n- Lägg till kalenderbokningslänk\n- Segmentera efter poäng (A/B får olika CTA)\n- Inkludera videoförklaring\n- Lägg till socialt bevis\n\n📊 **Spåra:**\n- E-post öppningsfrekvens\n- CTA klickfrekvens\n- Konvertering till betalt"
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "211da7b9-9d8e-4aac-bb9a-117ace8194d0",
+      "name": "Skrapa enskild URL",
+      "type": "@apify/n8n-nodes-apify.apify",
+      "position": [-1520, 640],
+      "parameters": {
+        "url": "={{ $('Initiera Variabler').item.json.landing_page_url }}",
+        "operation": "Scrape single URL"
+      },
+      "credentials": {
+        "apifyApi": {
+          "id": "gH6V2jP74FDZnpKe",
+          "name": "Apify account"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "id": "2366b186-a26b-4c07-ab23-643c5aa241e6",
+      "name": "Crawl4AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "onError": "continueRegularOutput",
+      "position": [-1520, 864],
+      "parameters": {
+        "url": "Crawl4AIInstanceLink/crawl",
+        "method": "POST",
+        "options": {},
+        "jsonBody": "={\n  \"urls\": [\"{{ $('Initiera Variabler').item.json.landing_page_url }}\"],\n  \"browser_config\": {\n    \"params\": { \"headless\": true }\n  },\n  \"priority\": 10,\n  \"crawler_config\": {\n    \"type\": \"CrawlerRunConfig\",\n    \"params\": { \"cache_mode\": \"bypass\" },\n    \"max_pages\":10,\n    \"max_depth\":2\n  }\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tR2mchCCFunmDNxj",
+          "name": "EthScan"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "918286d4-4b03-4756-9ce8-71f9c0bb1a47",
+      "name": "Sticky Note19",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-2544, 816],
+      "parameters": {
+        "color": 6,
+        "width": 448,
+        "height": 272,
+        "content": "## 🚀 Byggt av Evervise\n\n**Automatiserar det repetitiva så du kan fokusera på det som spelar roll**\n\n### Behöver du hjälp?\n📧 **Support**: mark.marin@evervise.com\n🌐 **Hemsida**: [evervise.ai](https://evervise.ai)  \n💬 **Svarstid**: Vanligtvis inom 24 timmar\n**Licens**: Anpassa fritt efter dina behov\n\n*Frågor om anpassning? Vi har varit där. Hör av dig.*"
+      },
+      "typeVersion": 1
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Crawl4AI": {
+      "main": [
+        [
+          {
+            "node": "Extrahera Sidelement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hämta Sidans HTML": {
+      "main": [
+        [
+          {
+            "node": "Extrahera Sidelement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formulärinlämning": {
+      "main": [
+        [
+          {
+            "node": "Initiera Variabler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copywriter Modell": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent 2: Copywriter",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skrapa enskild URL": {
+      "main": [
+        [
+          {
+            "node": "Extrahera Sidelement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 2: Copywriter": {
+      "main": [
+        [
+          {
+            "node": "Agent 3: SEO & Teknisk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Designkritiker Modell": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent 1: Designkritiker",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatera E-postrapport": {
+      "main": [
+        [
+          {
+            "node": "Skicka E-postrapport",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Skicka till Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initiera Variabler": {
+      "main": [
+        [
+          {
+            "node": "Hämta Sidans HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SEO-specialist Modell": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent 3: SEO & Teknisk",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrahera Sidelement": {
+      "main": [
+        [
+          {
+            "node": "Agent 1: Designkritiker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 1: Designkritiker": {
+      "main": [
+        [
+          {
+            "node": "Agent 2: Copywriter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tillväxtstrateg Modell": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent 4: Tillväxtstrateg",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 3: SEO & Teknisk": {
+      "main": [
+        [
+          {
+            "node": "Agent 4: Tillväxtstrateg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent 4: Tillväxtstrateg": {
+      "main": [
+        [
+          {
+            "node": "Formatera E-postrapport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
