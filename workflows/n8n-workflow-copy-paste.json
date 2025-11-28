@@ -152,8 +152,7 @@
           "cachedResultName": "Claude Sonnet 4.5"
         },
         "options": {
-          "temperature": 0.4,
-          "topP": 0.9
+          "temperature": 0.4
         }
       },
       "id": "design-model",
@@ -177,8 +176,7 @@
           "cachedResultName": "Claude Sonnet 4.5"
         },
         "options": {
-          "temperature": 0.5,
-          "topP": 0.9
+          "temperature": 0.5
         }
       },
       "id": "copy-model",
@@ -202,8 +200,7 @@
           "cachedResultName": "Claude Sonnet 4.5"
         },
         "options": {
-          "temperature": 0.3,
-          "topP": 0.85
+          "temperature": 0.3
         }
       },
       "id": "seo-model",
@@ -269,8 +266,7 @@
           "cachedResultName": "Claude Sonnet 4.5"
         },
         "options": {
-          "temperature": 0.6,
-          "topP": 0.95
+          "temperature": 0.6
         }
       },
       "id": "strategy-model",
