@@ -1,38 +1,46 @@
-import Link from 'next/link';
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
 
 export default function Home() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirect to analyzer page after a brief moment
+    const timer = setTimeout(() => {
+      router.push('/analyzer');
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [router]);
+
   return (
-    <div 
-      className="min-h-screen bg-cover bg-center flex flex-col items-center justify-center relative"
-      style={{ backgroundImage: "url('/bg.jpg')" }} // Byt ut med din bild
-    >
-      {/* Mörkt filter för bättre kontrast */}
-      <div className="absolute inset-0 bg-black bg-opacity-30"></div>
+    <>
+      <Head>
+        <title>Evervise | Landing Page Analyzer</title>
+        <meta name="description" content="Free professional landing page audit powered by AI. Analyze design, copy, SEO, and conversion potential in 90 seconds." />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
 
-      {/* Logotyp */}
-      <h1 className="text-white text-6xl font-bold relative z-10">Alpine Training</h1>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+        {/* Loading Animation */}
+        <div className="text-center">
+          <div className="flex items-center justify-center mb-8">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center animate-pulse">
+              <span className="text-white text-3xl font-bold">E</span>
+            </div>
+          </div>
+          <h1 className="text-white text-2xl font-semibold mb-4">Evervise</h1>
+          <p className="text-slate-400">Loading Landing Page Analyzer...</p>
 
-      {/* Knappar */}
-      <div className="relative z-10 mt-6 space-y-4">
-        <Link href="/login">
-          <button className="w-64 py-3 text-lg font-semibold bg-blue-800 text-white rounded-full shadow-md hover:bg-blue-900 transition">
-            Log in
-          </button>
-        </Link>
-        <Link href="/signup">
-          <button className="w-64 py-3 text-lg font-semibold bg-blue-800 text-white rounded-full shadow-md hover:bg-blue-900 transition">
-            Sign up
-          </button>
-        </Link>
+          {/* Loading Dots */}
+          <div className="flex justify-center mt-6 space-x-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-pink-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
+        </div>
       </div>
-
-      {/* Version info & språkknapp */}
-      <div className="absolute bottom-6 flex justify-between w-full px-8 text-white text-sm">
-        <p>Version: 1.0.0</p>
-        <button className="flex items-center space-x-1">
-          🌍 <span>SV</span>
-        </button>
-      </div>
-    </div>
+    </>
   );
 }
