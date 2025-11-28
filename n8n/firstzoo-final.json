@@ -1,0 +1,167 @@
+{
+  "name": "FirstZoo Auto-Reply FINAL",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "minutes", "minutesInterval": 5}]
+        }
+      },
+      "id": "trigger-1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [200, 300],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v21.0/334560683076234/posts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "options": {}
+      },
+      "id": "posts-1",
+      "name": "1. Hämta Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [400, 300],
+      "typeVersion": 4.2,
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "hYqYMv4GDvic39P4",
+          "name": "Facebook Graph account 8"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.data[0].id }}/comments",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "options": {}
+      },
+      "id": "comments-1",
+      "name": "2. Hämta Kommentarer",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [600, 300],
+      "typeVersion": 4.2,
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "hYqYMv4GDvic39P4",
+          "name": "Facebook Graph account 8"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hämta kommentarer\nconst comments = $input.first().json.data || [];\n\n// FILTRERA BORT TOMMA KOMMENTARER\nconst validComments = comments.filter(c => c.message && c.message.trim().length > 0);\n\nif (validComments.length === 0) {\n  return []; // Stoppar workflow om inga giltiga kommentarer\n}\n\n// Sortera efter datum (nyast först)\nconst sorted = validComments.sort((a, b) => \n  new Date(b.created_time) - new Date(a.created_time)\n);\n\nconst latest = sorted[0];\n\nreturn [{\n  json: {\n    commentId: latest.id,\n    commentMessage: latest.message,\n    commentTime: latest.created_time,\n    fromName: latest.from?.name || 'Kund'\n  }\n}];"
+      },
+      "id": "extract-1",
+      "name": "3. Extrahera Senaste Giltiga",
+      "type": "n8n-nodes-base.code",
+      "position": [800, 300],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"version": 2, "caseSensitive": true, "typeValidation": "loose"},
+          "combinator": "and",
+          "conditions": [{
+            "id": "check-msg",
+            "operator": {"type": "string", "operation": "notEmpty"},
+            "leftValue": "={{ $json.commentMessage }}",
+            "rightValue": ""
+          }]
+        },
+        "options": {}
+      },
+      "id": "check-1",
+      "name": "4. Har Meddelande?",
+      "type": "n8n-nodes-base.if",
+      "position": [1000, 300],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Du är Sandra, kundservicemedarbetare och delägare på ApotekHunden/FirstZoo, ett svenskt e-handelsföretag som säljer premium kosttillskott för hundar.\n\nDu skriver alltid på svenska, med proffsig, lugn och respektfull ton.\nDu använder inga onödiga emojis (max 0-1 vid positiva kommentarer, annars inga).\n\nDu är expert på:\n– hundhälsa\n– probiotika, prebiotika, tarmflora\n– Calm & Relax (lugnande)\n– Hip & Joint (leder)\n– Premium ingredienser\n– Prenumerationer och rabatter\n– Returer & nöjdhetsgaranti\n– Frakt & leverans\n\nPRODUKTER:\n- Probiotika 3-i-1: 1 miljard CFU probiotika, prebiotika, naturliga fibrer. Inga utfyllnadsämnen. 359 kr.\n- Calm & Relax: Naturliga lugnande ingredienser, verkar inom 30-60 min, långsiktig effekt vid dagligt bruk. 359 kr.\n- Hip & Joint: Stöd för leder, brosk och seniorhundar. 359 kr.\n\nVIKTIG INFO:\n- Klarna: Bara engångsköp, ej prenumeration\n- Leverans: Normalt inom 24 timmar\n- 359 kr är lägsta pris. 50% rabatt gäller endast första månaden med prenumeration.\n- Vid leveransproblem: Be kunden skicka ordernummer\n- Nöjdhetsgaranti: Kräver enkla underlag att produkten använts enligt dosering\n\nHÄLSNING:\nAlltid: \"Hej,\" eller \"Hej! Tack för att du hör av dig.\"\nAldrig: \"Tjena\", \"kompis\", \"gumman\", \"bästis\", slang.\n\nVID ARG KUND:\nHåll dig lugn, svara sakligt, aldrig defensiv.\nExempel: \"Det är absolut ingen bluff. Vi är ett svenskt företag och levererar varje dag.\"\n\nOM HUNDEN INTE VILL ÄTA:\nTipsa om: smula ner i maten, blanda med våtfoder/leverpastej, dela tuggan, ge tid för invänjning.\n\nKUNDENS KOMMENTAR:\n\"{{ $json.commentMessage }}\"\n\nSkriv ett kort (2-4 meningar), hjälpsamt och empatiskt svar på svenska.\nAvsluta ALLTID med:\nMVH // Sandra, ApotekHunden",
+        "options": {}
+      },
+      "id": "ai-1",
+      "name": "5. AI Svarar",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [1200, 200],
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": {"temperature": 0.3}
+      },
+      "id": "model-1",
+      "name": "Gemini Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "position": [1200, 420],
+      "typeVersion": 1,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "SBPs1WWupdLHEJ5W",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('3. Extrahera Senaste Giltiga').first().json.commentId }}/comments",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.output }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "reply-1",
+      "name": "6. Posta Svar",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1400, 200],
+      "typeVersion": 4.2,
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "hYqYMv4GDvic39P4",
+          "name": "Facebook Graph account 8"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## FirstZoo Facebook Auto-Reply FINAL\n\n**Page ID:** 334560683076234\n**Credential:** Facebook Graph account 8\n\n**Funktioner:**\n- Filtrerar bort tomma kommentarer\n- Sandra AI-personlighet\n- Gemini 2.0 Flash\n- Kör var 5:e minut",
+        "height": 180,
+        "width": 350,
+        "color": 6
+      },
+      "id": "note-1",
+      "name": "Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [200, 80],
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {"main": [[{"node": "1. Hämta Posts", "type": "main", "index": 0}]]},
+    "1. Hämta Posts": {"main": [[{"node": "2. Hämta Kommentarer", "type": "main", "index": 0}]]},
+    "2. Hämta Kommentarer": {"main": [[{"node": "3. Extrahera Senaste Giltiga", "type": "main", "index": 0}]]},
+    "3. Extrahera Senaste Giltiga": {"main": [[{"node": "4. Har Meddelande?", "type": "main", "index": 0}]]},
+    "4. Har Meddelande?": {"main": [[{"node": "5. AI Svarar", "type": "main", "index": 0}], []]},
+    "5. AI Svarar": {"main": [[{"node": "6. Posta Svar", "type": "main", "index": 0}]]},
+    "Gemini Model": {"ai_languageModel": [[{"node": "5. AI Svarar", "type": "ai_languageModel", "index": 0}]]}
+  },
+  "pinData": {},
+  "meta": {"templateId": "firstzoo-final", "instanceId": "545b20a0e8debd0a4268f682f05b50c366be7ddca470d64a7603778c9f7cb72a"}
+}
