@@ -1,5 +1,5 @@
 {
-  "name": "ApotekHunden Facebook Auto-Reply",
+  "name": "FirstZoo Facebook Auto-Reply",
   "nodes": [
     {
       "parameters": {
@@ -15,10 +15,7 @@
       "id": "189eb862-ad36-4ea4-992e-e5111a0767f3",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "position": [
-        368,
-        240
-      ],
+      "position": [368, 240],
       "typeVersion": 1.2
     },
     {
@@ -31,15 +28,12 @@
       "id": "c2a5a6cb-79a4-4c7b-9475-4681b45bd3d3",
       "name": "Posts Fetcher",
       "type": "n8n-nodes-base.httpRequest",
-      "position": [
-        592,
-        240
-      ],
+      "position": [592, 240],
       "typeVersion": 4.2,
       "credentials": {
         "facebookGraphApi": {
-          "id": "ikTAM2ghOhky6wA6",
-          "name": "Facebook Graph account"
+          "id": "FIRSTZOO_CREDENTIAL_ID",
+          "name": "Facebook FirstZoo"
         }
       }
     },
@@ -53,15 +47,12 @@
       "id": "829dd83a-58f8-44cd-a961-a1a0e2bd5c6e",
       "name": "Last Post Fetcher",
       "type": "n8n-nodes-base.httpRequest",
-      "position": [
-        784,
-        240
-      ],
+      "position": [784, 240],
       "typeVersion": 4.2,
       "credentials": {
         "facebookGraphApi": {
-          "id": "ikTAM2ghOhky6wA6",
-          "name": "Facebook Graph account"
+          "id": "FIRSTZOO_CREDENTIAL_ID",
+          "name": "Facebook FirstZoo"
         }
       }
     },
@@ -70,10 +61,7 @@
       "id": "27f33e5c-06ac-44f0-a6e0-44c6f376ba82",
       "name": "Merge",
       "type": "n8n-nodes-base.merge",
-      "position": [
-        1360,
-        240
-      ],
+      "position": [1360, 240],
       "typeVersion": 3.2
     },
     {
@@ -82,9 +70,8 @@
         "operation": "getAll",
         "databaseId": {
           "__rl": true,
-          "mode": "list",
-          "value": "ERSATT_MED_KNOWLEDGE_BASE_ID",
-          "cachedResultName": "Knowledge Base"
+          "mode": "id",
+          "value": "252f4caadbf44136a31fa48541c3c604"
         },
         "returnAll": true,
         "options": {}
@@ -92,10 +79,7 @@
       "id": "7a18fcb5-df50-46f6-a8aa-de653b070786",
       "name": "Knowledge Base",
       "type": "n8n-nodes-base.notion",
-      "position": [
-        1104,
-        384
-      ],
+      "position": [1104, 384],
       "typeVersion": 2.2,
       "credentials": {
         "notionApi": {
@@ -110,9 +94,8 @@
         "operation": "getAll",
         "databaseId": {
           "__rl": true,
-          "mode": "list",
-          "value": "ERSATT_MED_PROCESSED_COMMENTS_ID",
-          "cachedResultName": "Processed Facebook Comments"
+          "mode": "id",
+          "value": "c19128967ed94e99898fb35495eb20ad"
         },
         "filterType": "manual",
         "filters": {
@@ -129,10 +112,7 @@
       "id": "eb84d700-a32e-43a3-b4a9-781274635bab",
       "name": "CommentID Checker",
       "type": "n8n-nodes-base.notion",
-      "position": [
-        1104,
-        112
-      ],
+      "position": [1104, 112],
       "typeVersion": 2.2,
       "alwaysOutputData": true,
       "credentials": {
@@ -144,15 +124,12 @@
     },
     {
       "parameters": {
-        "jsCode": "// Get the Knowledge Base data from the Notion node\nconst kbPages = $input.all().map(item => item.json);\n\n// Helper function to extract text from Notion properties\nfunction extractText(property) {\n  if (!property) return '';\n  \n  if (property.rich_text && property.rich_text.length > 0) {\n    return property.rich_text[0].plain_text || '';\n  }\n  \n  if (property.title && property.title.length > 0) {\n    return property.title[0].plain_text || '';\n  }\n  \n  if (property.select) {\n    return property.select.name || '';\n  }\n  \n  if (property.number) {\n    return property.number.toString();\n  }\n  \n  return '';\n}\n\n// Create a linear array of knowledge base entries\nconst knowledgeArray = kbPages.map(page => {\n  const properties = page.properties || {};\n  \n  const productName = page.property_products || '';\n  const price = page.property_prices || '';\n  const description = page.property_description || '';\n  const name = page.name || '';\n  \n  const knowledgeEntry = {\n    name: name,\n    product: productName,\n    price: price,\n    description: description,\n    searchableText: [name, productName, price, description]\n      .filter(Boolean)\n      .join(' | ')\n  };\n  \n  return knowledgeEntry;\n}).filter(entry => entry.name || entry.product);\n\n// Create a simple string array for easy searching\nconst knowledgeStrings = knowledgeArray.map(entry => \n  `PRODUKT: ${entry.name || 'N/A'}` +\n  (entry.product ? ` | TYP: ${entry.product}` : '') +\n  (entry.price ? ` | PRIS: ${entry.price}` : '') +\n  (entry.description ? ` | BESKRIVNING: ${entry.description}` : '')\n);\n\n// Output the processed data\nreturn [{\n  json: {\n    ...($input.first()?.json || {}),\n    \n    knowledgeBase: {\n      entries: knowledgeArray,\n      searchableStrings: knowledgeStrings,\n      totalProducts: knowledgeArray.length\n    },\n    \n    knowledgeContext: knowledgeStrings.join('\\n\\n'),\n    \n    compactKnowledge: knowledgeArray.map(entry => \n      `${entry.name || entry.product}: ${entry.description || 'Ingen beskrivning'} (${entry.price || 'Pris ej angivet'})`\n    ).join('\\n')\n  }\n}];"
+        "jsCode": "const kbPages = $input.all().map(item => item.json);\n\nfunction extractText(property) {\n  if (!property) return '';\n  if (property.rich_text && property.rich_text.length > 0) return property.rich_text[0].plain_text || '';\n  if (property.title && property.title.length > 0) return property.title[0].plain_text || '';\n  if (property.select) return property.select.name || '';\n  if (property.number) return property.number.toString();\n  return '';\n}\n\nconst knowledgeArray = kbPages.map(page => {\n  const properties = page.properties || {};\n  return {\n    name: extractText(properties.Name) || extractText(properties.name) || page.name || '',\n    product: extractText(properties.Product) || extractText(properties.product) || '',\n    price: extractText(properties.Price) || extractText(properties.price) || '',\n    description: extractText(properties.Description) || extractText(properties.description) || ''\n  };\n}).filter(entry => entry.name || entry.product);\n\nconst knowledgeStrings = knowledgeArray.map(entry => \n  `PRODUKT: ${entry.name || 'N/A'}` +\n  (entry.product ? ` | TYP: ${entry.product}` : '') +\n  (entry.price ? ` | PRIS: ${entry.price}` : '') +\n  (entry.description ? ` | BESKRIVNING: ${entry.description}` : '')\n);\n\nreturn [{\n  json: {\n    ...($input.first()?.json || {}),\n    knowledgeContext: knowledgeStrings.join('\\n\\n') || 'Ingen produktinformation tillgänglig.',\n    totalProducts: knowledgeArray.length\n  }\n}];"
       },
       "id": "b81bc886-a42c-4c7d-9e99-844340dc205d",
       "name": "KB Arrange",
       "type": "n8n-nodes-base.code",
-      "position": [
-        1568,
-        240
-      ],
+      "position": [1568, 240],
       "typeVersion": 2
     },
     {
@@ -184,10 +161,7 @@
       "id": "91e25c71-a594-4bdc-a33c-c66857b62751",
       "name": "New Comment Conditioner",
       "type": "n8n-nodes-base.if",
-      "position": [
-        1808,
-        240
-      ],
+      "position": [1808, 240],
       "typeVersion": 2.2
     },
     {
@@ -200,15 +174,12 @@
       "id": "83aa9b95-6671-4813-90e8-3820202324e6",
       "name": "Latest Comment",
       "type": "n8n-nodes-base.facebookGraphApi",
-      "position": [
-        2048,
-        240
-      ],
+      "position": [2048, 240],
       "typeVersion": 1,
       "credentials": {
         "facebookGraphApi": {
-          "id": "ikTAM2ghOhky6wA6",
-          "name": "Facebook Graph account"
+          "id": "FIRSTZOO_CREDENTIAL_ID",
+          "name": "Facebook FirstZoo"
         }
       }
     },
@@ -221,10 +192,7 @@
       "id": "01df470c-f637-4065-af99-291dc56f4796",
       "name": "AI Agent",
       "type": "@n8n/n8n-nodes-langchain.agent",
-      "position": [
-        2336,
-        240
-      ],
+      "position": [2336, 240],
       "typeVersion": 2.1
     },
     {
@@ -237,10 +205,7 @@
       "id": "6c83bfa2-e7b6-4846-97c5-c21f62a6f56e",
       "name": "AI Chat Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
-      "position": [
-        2256,
-        480
-      ],
+      "position": [2256, 480],
       "typeVersion": 1,
       "credentials": {
         "googlePalmApi": {
@@ -269,15 +234,12 @@
       "id": "c0420da3-170b-4741-a71d-69998b34b13b",
       "name": "Reply Writer",
       "type": "n8n-nodes-base.facebookGraphApi",
-      "position": [
-        2736,
-        240
-      ],
+      "position": [2736, 240],
       "typeVersion": 1,
       "credentials": {
         "facebookGraphApi": {
-          "id": "ikTAM2ghOhky6wA6",
-          "name": "Facebook Graph account"
+          "id": "FIRSTZOO_CREDENTIAL_ID",
+          "name": "Facebook FirstZoo"
         }
       }
     },
@@ -286,9 +248,8 @@
         "resource": "databasePage",
         "databaseId": {
           "__rl": true,
-          "mode": "list",
-          "value": "ERSATT_MED_PROCESSED_COMMENTS_ID",
-          "cachedResultName": "Processed Facebook Comments"
+          "mode": "id",
+          "value": "c19128967ed94e99898fb35495eb20ad"
         },
         "propertiesUi": {
           "propertyValues": [
@@ -307,10 +268,7 @@
       "id": "15eb2020-9963-4ae8-adf4-445d5506ae07",
       "name": "CommentID to DB",
       "type": "n8n-nodes-base.notion",
-      "position": [
-        2992,
-        240
-      ],
+      "position": [2992, 240],
       "typeVersion": 2.2,
       "credentials": {
         "notionApi": {
@@ -321,164 +279,61 @@
     },
     {
       "parameters": {
-        "content": "## ApotekHunden Facebook Auto-Reply\nKör var 5:e minut och svarar automatiskt på nya kommentarer med AI (Sandra-personlighet).",
+        "content": "## FirstZoo Facebook Auto-Reply\nPage ID: 334560683076234\nKör var 5:e minut",
         "height": 80,
-        "width": 400,
+        "width": 300,
         "color": 6
       },
       "id": "header-note",
       "name": "Header",
       "type": "n8n-nodes-base.stickyNote",
-      "position": [
-        368,
-        80
-      ],
+      "position": [368, 80],
       "typeVersion": 1
     }
   ],
   "connections": {
     "AI Agent": {
-      "main": [
-        [
-          {
-            "node": "Reply Writer",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Reply Writer", "type": "main", "index": 0}]]
     },
     "AI Chat Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
+      "ai_languageModel": [[{"node": "AI Agent", "type": "ai_languageModel", "index": 0}]]
     },
     "Schedule Trigger": {
-      "main": [
-        [
-          {
-            "node": "Posts Fetcher",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Posts Fetcher", "type": "main", "index": 0}]]
     },
     "Merge": {
-      "main": [
-        [
-          {
-            "node": "KB Arrange",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "KB Arrange", "type": "main", "index": 0}]]
     },
     "Knowledge Base": {
-      "main": [
-        [
-          {
-            "node": "Merge",
-            "type": "main",
-            "index": 1
-          }
-        ]
-      ]
+      "main": [[{"node": "Merge", "type": "main", "index": 1}]]
     },
     "Last Post Fetcher": {
       "main": [
-        [
-          {
-            "node": "CommentID Checker",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Knowledge Base",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{"node": "CommentID Checker", "type": "main", "index": 0}, {"node": "Knowledge Base", "type": "main", "index": 0}]
       ]
     },
     "CommentID Checker": {
-      "main": [
-        [
-          {
-            "node": "Merge",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Merge", "type": "main", "index": 0}]]
     },
     "KB Arrange": {
-      "main": [
-        [
-          {
-            "node": "New Comment Conditioner",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "New Comment Conditioner", "type": "main", "index": 0}]]
     },
     "New Comment Conditioner": {
-      "main": [
-        [
-          {
-            "node": "Latest Comment",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        []
-      ]
+      "main": [[{"node": "Latest Comment", "type": "main", "index": 0}], []]
     },
     "Latest Comment": {
-      "main": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "AI Agent", "type": "main", "index": 0}]]
     },
     "Reply Writer": {
-      "main": [
-        [
-          {
-            "node": "CommentID to DB",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "CommentID to DB", "type": "main", "index": 0}]]
     },
     "Posts Fetcher": {
-      "main": [
-        [
-          {
-            "node": "Last Post Fetcher",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{"node": "Last Post Fetcher", "type": "main", "index": 0}]]
     }
   },
   "pinData": {},
   "meta": {
-    "templateId": "apotekhunden-facebook-auto-reply",
+    "templateId": "firstzoo-facebook-auto-reply",
     "instanceId": "545b20a0e8debd0a4268f682f05b50c366be7ddca470d64a7603778c9f7cb72a"
   }
 }
