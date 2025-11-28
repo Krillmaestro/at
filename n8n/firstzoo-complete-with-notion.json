@@ -205,10 +205,6 @@
             {
               "key": "Comment ID|rich_text",
               "textContent": "={{ $('7. Förbered AI-prompt').first().json.commentId }}"
-            },
-            {
-              "key": "Response Status|status",
-              "statusValue": "Done"
             }
           ]
         },
