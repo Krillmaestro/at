@@ -32,12 +32,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "position": [300, 300],
       "typeVersion": 4.2,
-      "credentials": {
-        "facebookGraphApi": {
-          "id": "CREDENTIAL_ID_HERE",
-          "name": "Facebook Graph account 9"
-        }
-      }
+      "credentials": {}
     },
     {
       "parameters": {
@@ -171,12 +166,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "position": [1700, 300],
       "typeVersion": 4.2,
-      "credentials": {
-        "facebookGraphApi": {
-          "id": "CREDENTIAL_ID_HERE",
-          "name": "Facebook Graph account 9"
-        }
-      }
+      "credentials": {}
     },
     {
       "parameters": {
