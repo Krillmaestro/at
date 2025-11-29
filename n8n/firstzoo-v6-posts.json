@@ -1,0 +1,190 @@
+{
+  "name": "FirstZoo Auto-Reply v6",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "minutes", "minutesInterval": 5}]
+        }
+      },
+      "id": "trigger-1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [100, 300],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v21.0/334560683076234/posts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {"name": "fields", "value": "id,message,created_time"},
+            {"name": "limit", "value": "5"}
+          ]
+        },
+        "options": {}
+      },
+      "id": "posts-1",
+      "name": "1. Hämta Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [300, 300],
+      "typeVersion": 4.2,
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.data[0].id }}/comments",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {"name": "fields", "value": "id,message,created_time,from"}
+          ]
+        },
+        "options": {}
+      },
+      "id": "comments-1",
+      "name": "2. Hämta Kommentarer",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [500, 300],
+      "typeVersion": 4.2,
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "jsCode": "const comments = $input.first().json.data || [];\nconst validComments = comments.filter(c => c.message && c.message.trim().length > 0);\nif (validComments.length === 0) { return []; }\nvalidComments.sort((a, b) => new Date(b.created_time) - new Date(a.created_time));\nconst latest = validComments[0];\nreturn [{ json: { commentId: latest.id, commentMessage: latest.message, commentTime: latest.created_time, fromName: latest.from?.name || 'Kund' } }];"
+      },
+      "id": "extract-1",
+      "name": "3. Extrahera Senaste",
+      "type": "n8n-nodes-base.code",
+      "position": [700, 300],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {"__rl": true, "mode": "id", "value": "c19128967ed94e99898fb35495eb20ad"},
+        "filterType": "manual",
+        "filters": {"conditions": [{"key": "Comment ID|rich_text", "condition": "equals", "richTextValue": "={{ $json.commentId }}"}]},
+        "options": {}
+      },
+      "id": "check-notion-1",
+      "name": "4. Kolla Notion",
+      "type": "n8n-nodes-base.notion",
+      "position": [900, 300],
+      "typeVersion": 2.2,
+      "alwaysOutputData": true,
+      "credentials": {"notionApi": {"id": "70eJ7d3xVXegEJH6", "name": "Notion account 3"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "const notionResults = $input.all();\nconst commentData = $('3. Extrahera Senaste').first().json;\nconst hasExisting = notionResults.some(item => item.json && item.json.properties);\nif (hasExisting) { return []; }\nreturn [{ json: { ...commentData, isNew: true } }];"
+      },
+      "id": "check-new-1",
+      "name": "5. Redan Besvarad?",
+      "type": "n8n-nodes-base.code",
+      "position": [1100, 300],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {"__rl": true, "mode": "id", "value": "252f4caadbf44136a31fa48541c3c604"},
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "kb-1",
+      "name": "6. Hämta Knowledge Base",
+      "type": "n8n-nodes-base.notion",
+      "position": [1300, 300],
+      "typeVersion": 2.2,
+      "credentials": {"notionApi": {"id": "70eJ7d3xVXegEJH6", "name": "Notion account 3"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "const commentData = $('5. Redan Besvarad?').first().json;\nconst kbItems = $input.all().map(item => {\n  const props = item.json.properties || {};\n  let name = '', desc = '', price = '';\n  for (const [key, val] of Object.entries(props)) {\n    if (val.title && val.title[0]) name = val.title[0].plain_text || '';\n    if (val.rich_text && val.rich_text[0]) {\n      if (key.toLowerCase().includes('desc')) desc = val.rich_text[0].plain_text || '';\n      if (key.toLowerCase().includes('pris')) price = val.rich_text[0].plain_text || '';\n    }\n  }\n  return name ? `${name}: ${desc} (${price})` : '';\n}).filter(x => x.length > 3);\nconst kb = kbItems.join('\\n') || 'Probiotika 3-i-1: 359 kr. Calm & Relax: 359 kr.';\nreturn [{ json: { commentId: commentData.commentId, commentMessage: commentData.commentMessage, knowledgeContext: kb } }];"
+      },
+      "id": "prepare-1",
+      "name": "7. Förbered AI-prompt",
+      "type": "n8n-nodes-base.code",
+      "position": [1500, 300],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Du är Sandra, kundservicemedarbetare på ApotekHunden/FirstZoo.\n\nSvara ALLTID på svenska, proffsigt och vänligt. Håll svaret kort (2-4 meningar).\nMax 0-1 emoji.\n\nPRODUKTER:\n{{ $json.knowledgeContext }}\n\nINFO:\n- Klarna: Bara engångsköp, ej prenumeration\n- Leverans: Inom 24 timmar\n- 50% rabatt = första månaden prenumeration\n\nKUNDENS KOMMENTAR:\n\"{{ $json.commentMessage }}\"\n\nSkriv ett kort, hjälpsamt svar. Avsluta med:\nMVH // Sandra, ApotekHunden",
+        "options": {}
+      },
+      "id": "ai-1",
+      "name": "8. AI Svarar",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [1700, 300],
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": {"temperature": 0.3}
+      },
+      "id": "model-1",
+      "name": "Gemini Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "position": [1700, 520],
+      "typeVersion": 1,
+      "credentials": {"googlePalmApi": {"id": "SBPs1WWupdLHEJ5W", "name": "Google Gemini(PaLM) Api account"}}
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('7. Förbered AI-prompt').first().json.commentId }}/comments",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendQuery": true,
+        "queryParameters": {"parameters": [{"name": "message", "value": "={{ $json.output }}"}]},
+        "options": {}
+      },
+      "id": "reply-1",
+      "name": "9. Posta Svar",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1900, 300],
+      "typeVersion": 4.2,
+      "credentials": {}
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {"__rl": true, "mode": "id", "value": "c19128967ed94e99898fb35495eb20ad"},
+        "propertiesUi": {"propertyValues": [{"key": "Comment ID|rich_text", "textContent": "={{ $('7. Förbered AI-prompt').first().json.commentId }}"}]},
+        "options": {}
+      },
+      "id": "save-1",
+      "name": "10. Spara till Notion",
+      "type": "n8n-nodes-base.notion",
+      "position": [2100, 300],
+      "typeVersion": 2.2,
+      "credentials": {"notionApi": {"id": "70eJ7d3xVXegEJH6", "name": "Notion account 3"}}
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {"main": [[{"node": "1. Hämta Posts", "type": "main", "index": 0}]]},
+    "1. Hämta Posts": {"main": [[{"node": "2. Hämta Kommentarer", "type": "main", "index": 0}]]},
+    "2. Hämta Kommentarer": {"main": [[{"node": "3. Extrahera Senaste", "type": "main", "index": 0}]]},
+    "3. Extrahera Senaste": {"main": [[{"node": "4. Kolla Notion", "type": "main", "index": 0}]]},
+    "4. Kolla Notion": {"main": [[{"node": "5. Redan Besvarad?", "type": "main", "index": 0}]]},
+    "5. Redan Besvarad?": {"main": [[{"node": "6. Hämta Knowledge Base", "type": "main", "index": 0}]]},
+    "6. Hämta Knowledge Base": {"main": [[{"node": "7. Förbered AI-prompt", "type": "main", "index": 0}]]},
+    "7. Förbered AI-prompt": {"main": [[{"node": "8. AI Svarar", "type": "main", "index": 0}]]},
+    "8. AI Svarar": {"main": [[{"node": "9. Posta Svar", "type": "main", "index": 0}]]},
+    "9. Posta Svar": {"main": [[{"node": "10. Spara till Notion", "type": "main", "index": 0}]]},
+    "Gemini Model": {"ai_languageModel": [[{"node": "8. AI Svarar", "type": "ai_languageModel", "index": 0}]]}
+  },
+  "pinData": {},
+  "meta": {"instanceId": "545b20a0e8debd0a4268f682f05b50c366be7ddca470d64a7603778c9f7cb72a"}
+}
