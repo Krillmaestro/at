@@ -1,0 +1,243 @@
+{
+  "name": "FirstZoo Auto-Reply ADS v5",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "minutes", "minutesInterval": 5}]
+        }
+      },
+      "id": "trigger-1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [100, 300],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v21.0/334560683076234/ads_posts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {"name": "fields", "value": "id,message,created_time,comments{id,message,created_time,from}"},
+            {"name": "limit", "value": "10"}
+          ]
+        },
+        "options": {}
+      },
+      "id": "posts-1",
+      "name": "1. Hämta Annons-Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [300, 300],
+      "typeVersion": 4.2,
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "CREDENTIAL_ID_HERE",
+          "name": "Facebook Graph account 9"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hämta alla annons-posts med kommentarer\nconst posts = $input.first().json.data || [];\n\n// Samla alla kommentarer från alla posts\nlet allComments = [];\n\nfor (const post of posts) {\n  const comments = post.comments?.data || [];\n  for (const comment of comments) {\n    if (comment.message && comment.message.trim().length > 0) {\n      allComments.push({\n        commentId: comment.id,\n        commentMessage: comment.message,\n        commentTime: comment.created_time,\n        fromName: comment.from?.name || 'Kund',\n        postId: post.id\n      });\n    }\n  }\n}\n\nif (allComments.length === 0) {\n  return []; // Inga kommentarer - stoppa\n}\n\n// Sortera efter datum (nyast först)\nallComments.sort((a, b) => new Date(b.commentTime) - new Date(a.commentTime));\n\n// Ta senaste kommentaren\nconst latest = allComments[0];\n\nreturn [{\n  json: {\n    commentId: latest.commentId,\n    commentMessage: latest.commentMessage,\n    commentTime: latest.commentTime,\n    fromName: latest.fromName,\n    postId: latest.postId\n  }\n}];"
+      },
+      "id": "extract-1",
+      "name": "2. Extrahera Kommentarer",
+      "type": "n8n-nodes-base.code",
+      "position": [500, 300],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "c19128967ed94e99898fb35495eb20ad"
+        },
+        "filterType": "manual",
+        "filters": {
+          "conditions": [{
+            "key": "Comment ID|rich_text",
+            "condition": "equals",
+            "richTextValue": "={{ $json.commentId }}"
+          }]
+        },
+        "options": {}
+      },
+      "id": "check-notion-1",
+      "name": "3. Kolla Notion",
+      "type": "n8n-nodes-base.notion",
+      "position": [700, 300],
+      "typeVersion": 2.2,
+      "alwaysOutputData": true,
+      "credentials": {
+        "notionApi": {
+          "id": "70eJ7d3xVXegEJH6",
+          "name": "Notion account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hämta resultat från Notion-sökningen\nconst notionResults = $input.all();\nconst commentData = $('2. Extrahera Kommentarer').first().json;\n\n// Kolla om det finns matchande poster i Notion\nconst hasExistingEntry = notionResults.some(item => {\n  return item.json && item.json.properties;\n});\n\nif (hasExistingEntry) {\n  console.log('STOPPAR - Kommentar redan besvarad:', commentData.commentId);\n  return []; // STOPPA\n}\n\n// Ny kommentar - fortsätt\nreturn [{\n  json: {\n    commentId: commentData.commentId,\n    commentMessage: commentData.commentMessage,\n    commentTime: commentData.commentTime,\n    fromName: commentData.fromName,\n    postId: commentData.postId,\n    isNew: true\n  }\n}];"
+      },
+      "id": "check-new-1",
+      "name": "4. Redan Besvarad?",
+      "type": "n8n-nodes-base.code",
+      "position": [900, 300],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "252f4caadbf44136a31fa48541c3c604"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "kb-1",
+      "name": "5. Hämta Knowledge Base",
+      "type": "n8n-nodes-base.notion",
+      "position": [1100, 300],
+      "typeVersion": 2.2,
+      "credentials": {
+        "notionApi": {
+          "id": "70eJ7d3xVXegEJH6",
+          "name": "Notion account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hämta kommentar-info\nconst commentData = $('4. Redan Besvarad?').first().json;\n\n// Hämta knowledge base\nconst kbItems = $input.all().map(item => {\n  const props = item.json.properties || {};\n  let name = '';\n  let desc = '';\n  let price = '';\n  \n  for (const [key, val] of Object.entries(props)) {\n    if (val.title && val.title[0]) name = val.title[0].plain_text || '';\n    if (val.rich_text && val.rich_text[0]) {\n      if (key.toLowerCase().includes('desc')) desc = val.rich_text[0].plain_text || '';\n      if (key.toLowerCase().includes('price') || key.toLowerCase().includes('pris')) price = val.rich_text[0].plain_text || '';\n    }\n  }\n  \n  return name ? `${name}: ${desc} (${price})` : '';\n}).filter(x => x.length > 3);\n\nconst knowledgeContext = kbItems.join('\\n') || 'Probiotika 3-i-1: 359 kr. Calm & Relax: 359 kr. Hip & Joint: 359 kr.';\n\nreturn [{\n  json: {\n    commentId: commentData.commentId,\n    commentMessage: commentData.commentMessage,\n    knowledgeContext: knowledgeContext\n  }\n}];"
+      },
+      "id": "prepare-1",
+      "name": "6. Förbered AI-prompt",
+      "type": "n8n-nodes-base.code",
+      "position": [1300, 300],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Du är Sandra, kundservicemedarbetare på ApotekHunden/FirstZoo.\n\nSvara ALLTID på svenska, proffsigt och vänligt. Håll svaret kort (2-4 meningar).\nMax 0-1 emoji. Aldrig: \"Tjena\", \"kompis\", \"gumman\", slang.\n\nPRODUKTER:\n{{ $json.knowledgeContext }}\n\nINFO:\n- Klarna: Bara engångsköp, ej prenumeration\n- Leverans: Inom 24 timmar\n- 50% rabatt = första månaden prenumeration\n- Problem? Be om ordernummer\n\nKUNDENS KOMMENTAR:\n\"{{ $json.commentMessage }}\"\n\nSkriv ett kort, hjälpsamt svar. Avsluta med:\nMVH // Sandra, ApotekHunden",
+        "options": {}
+      },
+      "id": "ai-1",
+      "name": "7. AI Svarar",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [1500, 300],
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": {"temperature": 0.3}
+      },
+      "id": "model-1",
+      "name": "Gemini Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "position": [1500, 520],
+      "typeVersion": 1,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "SBPs1WWupdLHEJ5W",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('6. Förbered AI-prompt').first().json.commentId }}/comments",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [{"name": "message", "value": "={{ $json.output }}"}]
+        },
+        "options": {}
+      },
+      "id": "reply-1",
+      "name": "8. Posta Svar",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1700, 300],
+      "typeVersion": 4.2,
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "CREDENTIAL_ID_HERE",
+          "name": "Facebook Graph account 9"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "c19128967ed94e99898fb35495eb20ad"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Comment ID|rich_text",
+              "textContent": "={{ $('6. Förbered AI-prompt').first().json.commentId }}"
+            },
+            {
+              "key": "Response Status|status",
+              "statusValue": "Done"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-1",
+      "name": "9. Spara till Notion",
+      "type": "n8n-nodes-base.notion",
+      "position": [1900, 300],
+      "typeVersion": 2.2,
+      "credentials": {
+        "notionApi": {
+          "id": "70eJ7d3xVXegEJH6",
+          "name": "Notion account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## FirstZoo Auto-Reply ADS v5\n\n**VIKTIGT:** Denna version hämtar\nkommentarer från ANNONSER (ads_posts)\nistället för vanliga posts!\n\n**Page ID:** 334560683076234\n\n**OBS:** Uppdatera credential ID i nod\n1 och 8 till din Facebook Graph account 9",
+        "height": 200,
+        "width": 350,
+        "color": 5
+      },
+      "id": "note-1",
+      "name": "Info",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [100, 80],
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {"main": [[{"node": "1. Hämta Annons-Posts", "type": "main", "index": 0}]]},
+    "1. Hämta Annons-Posts": {"main": [[{"node": "2. Extrahera Kommentarer", "type": "main", "index": 0}]]},
+    "2. Extrahera Kommentarer": {"main": [[{"node": "3. Kolla Notion", "type": "main", "index": 0}]]},
+    "3. Kolla Notion": {"main": [[{"node": "4. Redan Besvarad?", "type": "main", "index": 0}]]},
+    "4. Redan Besvarad?": {"main": [[{"node": "5. Hämta Knowledge Base", "type": "main", "index": 0}]]},
+    "5. Hämta Knowledge Base": {"main": [[{"node": "6. Förbered AI-prompt", "type": "main", "index": 0}]]},
+    "6. Förbered AI-prompt": {"main": [[{"node": "7. AI Svarar", "type": "main", "index": 0}]]},
+    "7. AI Svarar": {"main": [[{"node": "8. Posta Svar", "type": "main", "index": 0}]]},
+    "8. Posta Svar": {"main": [[{"node": "9. Spara till Notion", "type": "main", "index": 0}]]},
+    "Gemini Model": {"ai_languageModel": [[{"node": "7. AI Svarar", "type": "ai_languageModel", "index": 0}]]}
+  },
+  "pinData": {},
+  "meta": {"instanceId": "545b20a0e8debd0a4268f682f05b50c366be7ddca470d64a7603778c9f7cb72a"}
+}
