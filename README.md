@@ -1,5 +1,37 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
 
+## Conversion Rate Optimizer
+
+An interactive landing page analyzer that roasts your website and provides 10 actionable CRO recommendations, delivered directly to your email.
+
+### Features
+
+- Modern, interactive form UI with animations
+- AI-powered landing page analysis using Google Gemini
+- Email delivery of comprehensive CRO reports
+- Beautiful HTML email templates
+
+### Setup
+
+1. **Import the n8n workflow:**
+   - Go to your n8n instance
+   - Import either `n8n-workflows/conversion-optimizer-gmail.json` (recommended) or `n8n-workflows/conversion-optimizer-email.json`
+   - Configure your Google Gemini API credentials
+   - Configure your Gmail OAuth2 or SMTP credentials
+   - Activate the workflow and copy the webhook URL
+
+2. **Configure environment variables:**
+   ```bash
+   cp .env.example .env.local
+   ```
+   Add your n8n webhook URL to `.env.local`:
+   ```
+   N8N_WEBHOOK_URL=https://your-n8n-instance.com/webhook/conversion-optimizer
+   ```
+
+3. **Access the form:**
+   - Visit `/conversion-optimizer` to use the interactive form
+
 ## Getting Started
 
 First, run the development server:

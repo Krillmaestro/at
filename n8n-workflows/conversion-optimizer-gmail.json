@@ -1,0 +1,175 @@
+{
+  "name": "Conversion Rate Optimizer - Gmail Delivery",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "conversion-optimizer",
+        "options": {
+          "responseMode": "onReceived"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        240,
+        400
+      ],
+      "webhookId": "conversion-optimizer-webhook",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Normalize URL and extract email from webhook payload\n */\nconst urlFields = ['Landing Page Url', 'url', 'link'];\n\nitems.forEach(item => {\n  // Handle URL normalization\n  urlFields.forEach(field => {\n    const original = item.json[field];\n    if (typeof original !== 'string' || original.trim() === '') return;\n\n    // Check if URL has scheme\n    const hasScheme = /^(https?:\\/\\/)/i.test(original);\n\n    // Add https:// if missing\n    if (!hasScheme) {\n      item.json[field] = `https://${original}`;\n    }\n  });\n\n  // Ensure we have a normalized URL field\n  item.json.normalizedUrl = item.json['Landing Page Url'] || item.json.url || '';\n  item.json.userEmail = item.json['Email'] || item.json.email || '';\n});\n\nreturn items;"
+      },
+      "id": "code-normalize",
+      "name": "Normalize URL & Extract Email",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.normalizedUrl }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "scrape-website",
+      "name": "Scrape Website",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a professional expert in Conversion Rate Optimization who helps business founders & CMOs improve their landing pages. You are a world-class expert in analysing landing pages, roasting them, and providing valuable Conversion Rate Optimization Ideas to help businesses increase conversions.\n\nGOAL\nI want you to roast my landing page and deliver recommendations to improve the Conversion Rate. I will use this roast to understand what's wrong with my landing page and make improvements based on your recommendations.\n\nROAST STRUCTURE\nThis framework consists of 2 blocks of insights:\nRoast: a detailed roast of my landing page.\nRecommendations: 10 conversion rate optimization ideas based on your roast and analysis.\n\nROAST & RECOMMENDATIONS CRITERIA\nFor the Roast: Be friendly & casual. Talk like a human to another human.\nFor the Roast: Be unconventional & fun. I don't want to be bored. A roast must agitate the reader's feelings.\nFor the Roast: You will make a full landing page analysis, and explain what's wrong. You will use this analysis to make recommendations for The Recommendations.\nFor the Recommendations: Be specific. Write exactly what I need to do. Your detailed description for each Conversion Rate Optimization Idea should be self-explanatory. For example, instead of saying \"Rewrite your headline\", give me improved ideas for the headline. Your job is to return advanced insights personalised only for my specific landing page. This is a critical law for you.\nFor the Recommendations: Be creative. Don't return trivial and outdated Conversion Rate Optimization ideas that the average marketer would recommend. Prioritise unconventional CRO tactics so I get real value from you here. Think like the top 0.1% conversion rate optimization expert.\nFor the Recommendations: Prioritise Conversion Rate Optimization Ideas that are relevant in the 2024 digital marketing space.\nFor the Recommendations: Your Conversion Rate Optimization ideas must be impactful. Prioritise Conversion Rate Optimization Ideas that adds a wow effect.\nFor the Recommendations: Your Conversion Rate Optimization ideas must be easy to implement.\nFor the Recommendations: Personalise your ideas with references to the Roast you made. I don't want to read 10 generic ideas that can work for anyone (for example, \"add a live chat\" or \"offer a free trial\"). I need a 100% personalised response.\n\nHere is the content of my landing page: {{ $json.data }}\n\nIMPORTANT OUTPUT RULES (MUST READ):\n- Your entire response MUST be written in **English**.\n- Format your response with clear headers using ## for sections.\n- Use bullet points for the recommendations.\n- Make it visually easy to scan and read.\n- Your response should be comprehensive but focused.",
+        "options": {}
+      },
+      "id": "ai-agent",
+      "name": "AI Agent - CRO Analysis",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        900,
+        400
+      ],
+      "typeVersion": 1.7
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-pro",
+        "options": {}
+      },
+      "id": "gemini-model",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "position": [
+        900,
+        620
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Normalize URL & Extract Email').item.json.userEmail }}",
+        "subject": "Your Landing Page CRO Analysis is Ready!",
+        "emailType": "html",
+        "message": "=<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px; }\n    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; }\n    .header h1 { margin: 0; font-size: 24px; }\n    .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 12px 12px; }\n    .analysis { background: white; padding: 25px; border-radius: 8px; border-left: 4px solid #667eea; margin: 20px 0; white-space: pre-wrap; }\n    .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }\n    .url-analyzed { background: #e8f4f8; padding: 15px; border-radius: 8px; margin-bottom: 20px; }\n    h2 { color: #667eea; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>Your CRO Analysis is Ready!</h1>\n  </div>\n  <div class=\"content\">\n    <div class=\"url-analyzed\">\n      <strong>Analyzed URL:</strong> {{ $('Normalize URL & Extract Email').item.json.normalizedUrl }}\n    </div>\n    <div class=\"analysis\">\n      {{ $json.output }}\n    </div>\n    <div class=\"footer\">\n      <p>Want more CRO insights? Reply to this email!</p>\n      <p style=\"color: #999;\">Powered by AI | Conversion Rate Optimizer</p>\n    </div>\n  </div>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "send-gmail",
+      "name": "Send Gmail with Analysis",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1140,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize URL & Extract Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize URL & Extract Email": {
+      "main": [
+        [
+          {
+            "node": "Scrape Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Website": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - CRO Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - CRO Analysis": {
+      "main": [
+        [
+          {
+            "node": "Send Gmail with Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - CRO Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateId": "custom-cro-gmail",
+    "instanceId": "conversion-optimizer-gmail-v2"
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
