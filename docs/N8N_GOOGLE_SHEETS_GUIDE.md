@@ -28,66 +28,87 @@ Google Sheet är din kontrollpanel där du:
 - Ser alla skapade ads
 - Skriver ad-texter
 
-## Steg 1.1: Skapa ett nytt Google Sheet
+## Steg 1.1: Skapa Google Sheet (AUTOMATISKT)
 
 1. Gå till: **https://sheets.google.com**
 2. Logga in med ditt Google-konto
 3. Klicka på **+ Blank** (Tom) för att skapa ett nytt sheet
-4. Klicka på "Untitled spreadsheet" uppe till vänster
-5. Döp det till: **Meta Ads Automation**
+4. Klicka på **Extensions** → **Apps Script**
+5. Ta bort all kod som finns i editorn
+6. Kopiera och klistra in HELA denna kod:
 
-## Steg 1.2: Skapa Tab 1 - Settings
+```javascript
+function setupMetaAdsSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  ss.rename('Meta Ads Automation');
 
-1. Du har redan en flik som heter "Sheet1"
-2. Dubbelklicka på "Sheet1" (längst ner)
-3. Döp om den till: **Settings**
-4. Nu ska du fylla i EXAKT denna struktur:
+  // Rename first sheet to Settings
+  const settingsSheet = ss.getSheets()[0];
+  settingsSheet.setName('Settings');
 
-**I cell A1, skriv:** `Setting`
-**I cell B1, skriv:** `Value`
+  // Create other sheets
+  const adsLogSheet = ss.insertSheet('Ads Log');
+  const adCopySheet = ss.insertSheet('Ad Copy');
 
-**Fyll sedan i raderna nedan:**
+  // ===== SETTINGS SHEET =====
+  settingsSheet.getRange('A1:B1').setValues([['Setting', 'Value']]);
+  settingsSheet.getRange('A2:B12').setValues([
+    ['ad_account_id', ''],
+    ['facebook_page_id', ''],
+    ['pixel_id', ''],
+    ['custom_event_type', 'ADD_TO_CART'],
+    ['website_link', 'https://dinwebbsida.com'],
+    ['campaign_name', 'Creative_Test'],
+    ['daily_budget', '500'],
+    ['drive_folder_id', ''],
+    ['primary_text', 'Din primära annonstext här'],
+    ['headline', 'Din headline här'],
+    ['description', 'Din beskrivning här']
+  ]);
+  settingsSheet.getRange('A1:B1').setFontWeight('bold').setBackground('#4285f4').setFontColor('white');
+  settingsSheet.setColumnWidth(1, 200);
+  settingsSheet.setColumnWidth(2, 400);
 
-| Rad | Kolumn A | Kolumn B (fyll i dina värden senare) |
-|-----|----------|--------------------------------------|
-| 1 | Setting | Value |
-| 2 | ad_account_id | (lämna tom nu) |
-| 3 | facebook_page_id | (lämna tom nu) |
-| 4 | pixel_id | (lämna tom nu) |
-| 5 | custom_event_type | ADD_TO_CART |
-| 6 | website_link | https://dinwebbsida.com |
-| 7 | campaign_name | Creative_Test |
-| 8 | daily_budget | 500 |
-| 9 | drive_folder_id | (lämna tom nu) |
-| 10 | primary_text | Din primära annonstext här |
-| 11 | headline | Din headline här |
+  // ===== ADS LOG SHEET =====
+  adsLogSheet.getRange('A1:G1').setValues([[
+    'Timestamp', 'FileName', 'Type', 'CampaignID', 'AdsetID', 'CreativeID', 'AdID'
+  ]]);
+  adsLogSheet.getRange('A1:G1').setFontWeight('bold').setBackground('#34a853').setFontColor('white');
+  adsLogSheet.setFrozenRows(1);
 
-## Steg 1.3: Skapa Tab 2 - Ads Log
+  // ===== AD COPY SHEET =====
+  adCopySheet.getRange('A1:E1').setValues([['Name', 'Primary Text', 'Headline', 'Description', 'Call to Action']]);
+  adCopySheet.getRange('A2:E4').setValues([
+    ['Default', 'Check out our amazing product!', 'Shop Now', 'Limited time offer', 'SHOP_NOW'],
+    ['Sale', 'Big sale - Up to 50% off!', 'Dont Miss Out', 'Ends soon', 'SHOP_NOW'],
+    ['New Product', 'Introducing something new', 'See Whats New', 'Be the first to try', 'LEARN_MORE']
+  ]);
+  adCopySheet.getRange('A1:E1').setFontWeight('bold').setBackground('#fbbc04').setFontColor('black');
+  adCopySheet.setFrozenRows(1);
+  adCopySheet.setColumnWidth(2, 300);
 
-1. Klicka på **+** tecknet bredvid "Settings" fliken (längst ner)
-2. En ny flik skapas - dubbelklicka på den
-3. Döp den till: **Ads Log**
-4. Fyll i headers i rad 1:
+  SpreadsheetApp.flush();
 
-| A | B | C | D | E | F | G |
-|---|---|---|---|---|---|---|
-| Timestamp | FileName | Type | CampaignID | AdsetID | CreativeID | AdID |
+  SpreadsheetApp.getUi().alert(
+    'Setup Complete! ✅\\n\\n' +
+    'Ditt Meta Ads sheet är klart med 3 flikar:\\n' +
+    '• Settings - Fyll i dina credentials här\\n' +
+    '• Ads Log - Ads loggas här automatiskt\\n' +
+    '• Ad Copy - Dina annonstext-mallar\\n\\n' +
+    'Nästa steg: Fyll i Settings-fliken med dina Meta-värden.'
+  );
+}
+```
 
-## Steg 1.4: Skapa Tab 3 - Ad Copy (Valfritt)
+7. Klicka **Save** (Ctrl+S eller Cmd+S)
+8. Klicka på **Run** ▶️ (play-knappen)
+9. Första gången: Klicka **Review permissions** → Välj ditt konto → **Allow**
+10. Vänta tills popup-rutan säger "Setup Complete!"
+11. Stäng Apps Script-fliken och gå tillbaka till ditt Sheet
 
-Om du vill ha flera varianter av ad copy:
+**Klart!** Du har nu 3 flikar: Settings, Ads Log, och Ad Copy - alla färdiga!
 
-1. Klicka på **+** för att skapa en till flik
-2. Döp den till: **Ad Copy**
-3. Fyll i:
-
-| A | B | C |
-|---|---|---|
-| primary_text | headline | description |
-| Variant 1 text... | Headline 1 | Description 1 |
-| Variant 2 text... | Headline 2 | Description 2 |
-
-## Steg 1.5: Skapa Google Drive-mapp
+## Steg 1.2: Skapa Google Drive-mapp
 
 1. Gå till: **https://drive.google.com**
 2. Klicka på **+ New** → **New folder**
@@ -97,9 +118,9 @@ Om du vill ha flera varianter av ad copy:
 6. **VIKTIGT:** Kopiera mappens ID från URL:en:
    - URL ser ut så här: `https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz`
    - Mapp-ID är: `1AbCdEfGhIjKlMnOpQrStUvWxYz`
-7. Klistra in detta ID i din Google Sheet under **Settings → drive_folder_id**
+7. Gå till ditt Google Sheet → Settings-fliken → Klistra in ID:t i raden **drive_folder_id**
 
-## Steg 1.6: Kopiera Sheet-ID
+## Steg 1.3: Kopiera Sheet-ID
 
 1. Gå tillbaka till ditt Google Sheet
 2. Titta på URL:en, den ser ut så här:
