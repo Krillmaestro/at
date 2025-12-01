@@ -3,90 +3,13 @@
   "nodes": [
     {
       "parameters": {
-        "formTitle": "Skapa Facebook-annonser",
-        "formDescription": "Fyll i formuläret för att automatiskt skapa Facebook-annonser från din Google Drive-mapp. Mappnamnet blir Ad Set-namnet.",
-        "formFields": {
-          "values": [
-            {
-              "fieldLabel": "Google Drive Folder URL",
-              "fieldType": "text",
-              "requiredField": true,
-              "placeholder": "https://drive.google.com/drive/folders/1ABC123..."
-            },
-            {
-              "fieldLabel": "Campaign ID",
-              "fieldType": "text",
-              "requiredField": true,
-              "placeholder": "123456789012345"
-            },
-            {
-              "fieldLabel": "Primary Text (Annonstext)",
-              "fieldType": "text",
-              "requiredField": true,
-              "placeholder": "Din huvudsakliga annonstext..."
-            },
-            {
-              "fieldLabel": "Headline (Rubrik)",
-              "fieldType": "text",
-              "requiredField": true,
-              "placeholder": "Din rubrik"
-            },
-            {
-              "fieldLabel": "Description (Beskrivning)",
-              "fieldType": "text",
-              "requiredField": false,
-              "placeholder": "Valfri extra beskrivning"
-            },
-            {
-              "fieldLabel": "Website URL (lämna tomt för default)",
-              "fieldType": "text",
-              "requiredField": false,
-              "placeholder": "https://dinwebbplats.se/landing"
-            },
-            {
-              "fieldLabel": "Call to Action",
-              "fieldType": "dropdown",
-              "requiredField": true,
-              "fieldOptions": {
-                "values": [
-                  {"option": "SHOP_NOW"},
-                  {"option": "LEARN_MORE"},
-                  {"option": "SIGN_UP"},
-                  {"option": "BOOK_NOW"},
-                  {"option": "CONTACT_US"},
-                  {"option": "GET_OFFER"},
-                  {"option": "ORDER_NOW"},
-                  {"option": "BUY_NOW"},
-                  {"option": "SUBSCRIBE"}
-                ]
-              }
-            }
-          ]
-        },
-        "options": {
-          "respondWithOptions": {
-            "values": {
-              "formSubmittedText": "Tack! Annons-skapandet har startat. Du får en Slack-notis när det är klart."
-            }
-          }
-        }
+        "notice": "Klicka på 'Test workflow' eller 'Execute workflow' för att köra.\n\nWorkflowet skannar Creative Folder, skapar Ad Sets för varje undermapp, och annonser för varje fil."
       },
-      "id": "submit-form",
-      "name": "Submit Form",
-      "type": "n8n-nodes-base.formTrigger",
-      "typeVersion": 2.1,
-      "position": [-1400, 400],
-      "webhookId": "meta-ads-form"
-    },
-    {
-      "parameters": {
-        "jsCode": "const input = $input.first().json;\n\n// Parse folder ID from URL\nlet folderId = input['Google Drive Folder URL'];\nif (folderId.includes('folders/')) {\n  folderId = folderId.split('folders/')[1].split('?')[0].split('/')[0];\n}\n\nreturn [{\n  json: {\n    folder_id: folderId,\n    folder_url: input['Google Drive Folder URL'],\n    campaign_id: input['Campaign ID'].trim(),\n    primary_text: input['Primary Text (Annonstext)'],\n    headline: input['Headline (Rubrik)'],\n    description: input['Description (Beskrivning)'] || '',\n    website_url_override: input['Website URL (lämna tomt för default)'] || '',\n    call_to_action: input['Call to Action'],\n    submission_time: new Date().toISOString()\n  }\n}];"
-      },
-      "id": "format-form-data",
-      "name": "Format Form Data",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [-1160, 400]
+      "id": "manual-trigger",
+      "name": "Klicka Run för att starta",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-1400, 400]
     },
     {
       "parameters": {
@@ -106,7 +29,7 @@
       "name": "Get Settings",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [-920, 400],
+      "position": [-1160, 400],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "GOOGLE_CREDENTIAL_ID",
@@ -116,29 +39,29 @@
     },
     {
       "parameters": {
-        "jsCode": "const formData = $('Format Form Data').first().json;\nconst settingsRows = $input.all();\n\n// Parse settings from sheet into object\nconst settings = {};\nfor (const row of settingsRows) {\n  if (row.json.Setting && row.json.Value !== undefined && row.json.Value !== '') {\n    settings[row.json.Setting] = row.json.Value;\n  }\n}\n\n// Validate required settings\nconst required = ['ad_account_id', 'facebook_page_id', 'pixel_id', 'daily_budget', 'target_countries'];\nconst missing = required.filter(key => !settings[key]);\n\nif (missing.length > 0) {\n  throw new Error('Saknade settings i Google Sheet: ' + missing.join(', '));\n}\n\n// Convert budget from KR to cents (öre)\nconst budgetKr = parseFloat(settings.daily_budget);\nconst budgetCents = Math.round(budgetKr * 100);\n\n// Parse countries\nconst countries = settings.target_countries.split(',').map(c => c.trim().toUpperCase());\n\n// Use override URL if provided, otherwise use default from settings\nconst websiteUrl = formData.website_url_override || settings.website_url || '';\n\nif (!websiteUrl) {\n  throw new Error('Website URL saknas - ange i formuläret eller i Settings');\n}\n\n// Build final data object\nreturn [{\n  json: {\n    // From form\n    folder_id: formData.folder_id,\n    folder_url: formData.folder_url,\n    campaign_id: formData.campaign_id,\n    primary_text: formData.primary_text,\n    headline: formData.headline,\n    description: formData.description,\n    call_to_action: formData.call_to_action,\n    submission_time: formData.submission_time,\n    \n    // From settings\n    ad_account_id: settings.ad_account_id.replace('act_', ''),\n    facebook_page_id: settings.facebook_page_id,\n    pixel_id: settings.pixel_id,\n    \n    // Budget (converted)\n    daily_budget_kr: budgetKr,\n    daily_budget_cents: budgetCents,\n    \n    // Targeting\n    target_countries: countries,\n    \n    // Ad Set config\n    optimization_goal: settings.optimization_goal || 'OFFSITE_CONVERSIONS',\n    conversion_event: settings.conversion_event || 'PURCHASE',\n    bid_strategy: settings.bid_strategy || 'LOWEST_COST_WITHOUT_CAP',\n    \n    // Creative\n    website_url: websiteUrl,\n    \n    // Slack\n    slack_channel: settings.slack_channel || ''\n  }\n}];"
+        "jsCode": "const settingsRows = $input.all();\n\n// Parse settings from sheet into object\nconst settings = {};\nfor (const row of settingsRows) {\n  if (row.json.Setting && row.json.Value !== undefined && row.json.Value !== '') {\n    settings[row.json.Setting] = row.json.Value;\n  }\n}\n\n// Validate required settings\nconst required = [\n  'ad_account_id', \n  'facebook_page_id', \n  'pixel_id', \n  'campaign_id',\n  'creative_folder_id',\n  'uploaded_folder_id',\n  'daily_budget', \n  'target_countries',\n  'website_url',\n  'primary_text',\n  'headline',\n  'call_to_action'\n];\nconst missing = required.filter(key => !settings[key]);\n\nif (missing.length > 0) {\n  throw new Error('Saknade settings i Google Sheet: ' + missing.join(', '));\n}\n\n// Convert budget from KR to cents (öre)\nconst budgetKr = parseFloat(settings.daily_budget);\nconst budgetCents = Math.round(budgetKr * 100);\n\n// Parse countries\nconst countries = settings.target_countries.split(',').map(c => c.trim().toUpperCase());\n\nreturn [{\n  json: {\n    // Account\n    ad_account_id: settings.ad_account_id.replace('act_', ''),\n    facebook_page_id: settings.facebook_page_id,\n    pixel_id: settings.pixel_id,\n    campaign_id: settings.campaign_id,\n    \n    // Folders\n    creative_folder_id: settings.creative_folder_id,\n    uploaded_folder_id: settings.uploaded_folder_id,\n    \n    // Budget\n    daily_budget_kr: budgetKr,\n    daily_budget_cents: budgetCents,\n    \n    // Targeting\n    target_countries: countries,\n    optimization_goal: settings.optimization_goal || 'OFFSITE_CONVERSIONS',\n    conversion_event: settings.conversion_event || 'PURCHASE',\n    bid_strategy: settings.bid_strategy || 'LOWEST_COST_WITHOUT_CAP',\n    \n    // Ad Creative Content\n    website_url: settings.website_url,\n    primary_text: settings.primary_text,\n    headline: settings.headline,\n    description: settings.description || '',\n    call_to_action: settings.call_to_action,\n    \n    // Slack\n    slack_channel: settings.slack_channel || '',\n    \n    // Metadata\n    run_time: new Date().toISOString()\n  }\n}];"
       },
-      "id": "merge-settings",
-      "name": "Merge Settings",
+      "id": "parse-settings",
+      "name": "Parse Settings",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-680, 400]
+      "position": [-920, 400]
     },
     {
       "parameters": {
-        "resource": "folder",
-        "operation": "get",
-        "folderId": {
-          "__rl": true,
-          "value": "={{ $json.folder_id }}",
-          "mode": "id"
+        "resource": "fileFolder",
+        "operation": "search",
+        "queryString": "=mimeType='application/vnd.google-apps.folder' and '{{ $json.creative_folder_id }}' in parents and trashed=false",
+        "returnAll": true,
+        "options": {
+          "fields": ["id", "name", "createdTime"]
         }
       },
-      "id": "get-folder-info",
-      "name": "Get Folder Info",
+      "id": "list-adset-folders",
+      "name": "List Ad Set Folders",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [-440, 400],
+      "position": [-680, 400],
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "GOOGLE_CREDENTIAL_ID",
@@ -148,13 +71,42 @@
     },
     {
       "parameters": {
-        "jsCode": "const folderInfo = $input.first().json;\nconst prevData = $('Merge Settings').first().json;\n\n// Clean folder name for use as Ad Set name\nconst folderName = folderInfo.name;\nconst adSetName = folderName.replace(/[^a-zA-Z0-9åäöÅÄÖ\\s\\-_]/g, '').trim();\n\nconst timestamp = new Date().toISOString().slice(0, 10);\n\nreturn [{\n  json: {\n    ...prevData,\n    folder_name: folderName,\n    adset_name: `${adSetName}_${timestamp}`\n  }\n}];"
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-folders",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       },
-      "id": "set-adset-name",
-      "name": "Set AdSet Name",
+      "id": "check-folders-exist",
+      "name": "Has Folders?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-440, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const folders = $input.all();\nconst settings = $('Parse Settings').first().json;\n\nreturn folders.map(folder => ({\n  json: {\n    folder_id: folder.json.id,\n    folder_name: folder.json.name,\n    adset_name: folder.json.name.replace(/[^a-zA-Z0-9åäöÅÄÖ\\s\\-_]/g, '').trim(),\n    config: settings\n  }\n}));"
+      },
+      "id": "prepare-folders",
+      "name": "Prepare Folders",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-200, 400]
+      "position": [-200, 300]
     },
     {
       "parameters": {
@@ -163,14 +115,14 @@
         "queryString": "=(mimeType='image/jpeg' or mimeType='image/png' or mimeType='image/webp' or mimeType='video/mp4' or mimeType='video/quicktime' or mimeType='video/mov') and '{{ $json.folder_id }}' in parents and trashed=false",
         "returnAll": true,
         "options": {
-          "fields": ["id", "name", "mimeType", "size", "webViewLink"]
+          "fields": ["id", "name", "mimeType", "size"]
         }
       },
-      "id": "search-files",
-      "name": "Search Files",
+      "id": "list-files",
+      "name": "List Files in Folder",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [40, 400],
+      "position": [40, 300],
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "GOOGLE_CREDENTIAL_ID",
@@ -205,17 +157,17 @@
       "name": "Has Files?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [280, 400]
+      "position": [280, 300]
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst configData = $('Set AdSet Name').first().json;\n\nconst MAX_IMAGE_SIZE = 30 * 1024 * 1024; // 30MB\nconst MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024; // 4GB\n\nconst validItems = [];\n\nfor (const item of items) {\n  const name = item.json.name;\n  const size = parseInt(item.json.size) || 0;\n  const mimeType = item.json.mimeType;\n  const isVideo = mimeType.includes('video');\n  \n  // Check file size\n  if (isVideo && size > MAX_VIDEO_SIZE) {\n    console.log(`Skipping ${name}: Video exceeds 4GB`);\n    continue;\n  }\n  if (!isVideo && size > MAX_IMAGE_SIZE) {\n    console.log(`Skipping ${name}: Image exceeds 30MB`);\n    continue;\n  }\n  \n  // Clean filename for ad name\n  const cleanName = name\n    .replace(/\\.[^/.]+$/, '') // Remove extension\n    .replace(/[^a-zA-Z0-9åäöÅÄÖ\\-_]/g, '_') // Replace special chars\n    .substring(0, 50); // Limit length\n  \n  validItems.push({\n    json: {\n      file_id: item.json.id,\n      file_name: name,\n      clean_name: cleanName,\n      mime_type: mimeType,\n      is_video: isVideo,\n      size: size,\n      config: configData\n    }\n  });\n}\n\nif (validItems.length === 0) {\n  throw new Error('Inga giltiga filer hittades i mappen');\n}\n\nreturn validItems;"
+        "jsCode": "const files = $input.all();\nconst folderData = $('Prepare Folders').item.json;\n\nconst MAX_IMAGE_SIZE = 30 * 1024 * 1024;\nconst MAX_VIDEO_SIZE = 4 * 1024 * 1024 * 1024;\n\nconst validFiles = [];\n\nfor (const file of files) {\n  const name = file.json.name;\n  const size = parseInt(file.json.size) || 0;\n  const mimeType = file.json.mimeType;\n  const isVideo = mimeType.includes('video');\n  \n  if (isVideo && size > MAX_VIDEO_SIZE) continue;\n  if (!isVideo && size > MAX_IMAGE_SIZE) continue;\n  \n  // Creative name = filename without extension\n  const creativeName = name.replace(/\\.[^/.]+$/, '').trim();\n  \n  validFiles.push({\n    json: {\n      file_id: file.json.id,\n      file_name: name,\n      creative_name: creativeName,\n      mime_type: mimeType,\n      is_video: isVideo,\n      size: size,\n      folder_id: folderData.folder_id,\n      folder_name: folderData.folder_name,\n      adset_name: folderData.adset_name,\n      config: folderData.config\n    }\n  });\n}\n\nif (validFiles.length === 0) {\n  throw new Error(`Inga giltiga filer i mappen: ${folderData.folder_name}`);\n}\n\nreturn validFiles;"
       },
       "id": "validate-files",
       "name": "Validate Files",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [520, 300]
+      "position": [520, 200]
     },
     {
       "parameters": {
@@ -231,7 +183,7 @@
       "name": "Download File",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [760, 300],
+      "position": [760, 200],
       "credentials": {
         "googleDriveOAuth2Api": {
           "id": "GOOGLE_CREDENTIAL_ID",
@@ -266,27 +218,7 @@
       "name": "Video or Image?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1000, 300]
-    },
-    {
-      "parameters": {
-        "jsCode": "const item = $input.first();\nconst timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');\nconst adName = `Video_${item.json.clean_name}_${timestamp}`;\n\nreturn [{\n  json: {\n    ...item.json,\n    ad_name: adName,\n    media_type: 'video'\n  },\n  binary: item.binary\n}];"
-      },
-      "id": "format-video",
-      "name": "Format Video",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1240, 200]
-    },
-    {
-      "parameters": {
-        "jsCode": "const item = $input.first();\nconst timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');\nconst adName = `Image_${item.json.clean_name}_${timestamp}`;\n\nreturn [{\n  json: {\n    ...item.json,\n    ad_name: adName,\n    media_type: 'image'\n  },\n  binary: item.binary\n}];"
-      },
-      "id": "format-image",
-      "name": "Format Image",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1240, 400]
+      "position": [1000, 200]
     },
     {
       "parameters": {
@@ -298,7 +230,7 @@
       "name": "Rename Video Binary",
       "type": "n8n-nodes-base.convertToFile",
       "typeVersion": 1.1,
-      "position": [1480, 200]
+      "position": [1240, 100]
     },
     {
       "parameters": {
@@ -310,7 +242,7 @@
       "name": "Rename Image Binary",
       "type": "n8n-nodes-base.convertToFile",
       "typeVersion": 1.1,
-      "position": [1480, 400]
+      "position": [1240, 300]
     },
     {
       "parameters": {
@@ -330,7 +262,7 @@
             {
               "name": "title",
               "parameterType": "formData",
-              "value": "={{ $json.ad_name }}"
+              "value": "={{ $json.creative_name }}"
             }
           ]
         },
@@ -342,7 +274,7 @@
       "name": "Upload Video",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1720, 200],
+      "position": [1480, 100],
       "credentials": {
         "facebookGraphApi": {
           "id": "META_CREDENTIAL_ID",
@@ -375,7 +307,7 @@
       "name": "Upload Image",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1720, 400],
+      "position": [1480, 300],
       "credentials": {
         "facebookGraphApi": {
           "id": "META_CREDENTIAL_ID",
@@ -392,7 +324,7 @@
       "name": "Wait (Video)",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [1960, 200]
+      "position": [1720, 100]
     },
     {
       "parameters": {
@@ -403,27 +335,27 @@
       "name": "Wait (Image)",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
-      "position": [1960, 400]
+      "position": [1720, 300]
     },
     {
       "parameters": {
-        "jsCode": "const uploadResult = $input.first().json;\nconst prevData = $('Rename Video Binary').first().json;\n\nreturn [{\n  json: {\n    video_id: uploadResult.id,\n    ad_name: prevData.ad_name,\n    media_type: 'video',\n    file_name: prevData.file_name,\n    config: prevData.config\n  }\n}];"
+        "jsCode": "const uploadResult = $input.first().json;\nconst prevData = $('Rename Video Binary').first().json;\n\nreturn [{\n  json: {\n    ...prevData,\n    video_id: uploadResult.id,\n    media_type: 'video'\n  }\n}];"
       },
       "id": "set-video-id",
       "name": "Set Video ID",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2200, 200]
+      "position": [1960, 100]
     },
     {
       "parameters": {
-        "jsCode": "const uploadResult = $input.first().json;\nconst prevData = $('Rename Image Binary').first().json;\n\n// Extract hash from response\nconst imageHash = Object.values(uploadResult.images)[0].hash;\n\nreturn [{\n  json: {\n    image_hash: imageHash,\n    ad_name: prevData.ad_name,\n    media_type: 'image',\n    file_name: prevData.file_name,\n    config: prevData.config\n  }\n}];"
+        "jsCode": "const uploadResult = $input.first().json;\nconst prevData = $('Rename Image Binary').first().json;\n\nconst imageHash = Object.values(uploadResult.images)[0].hash;\n\nreturn [{\n  json: {\n    ...prevData,\n    image_hash: imageHash,\n    media_type: 'image'\n  }\n}];"
       },
       "id": "set-image-hash",
       "name": "Set Image Hash",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2200, 400]
+      "position": [1960, 300]
     },
     {
       "parameters": {
@@ -433,14 +365,14 @@
         "nodeCredentialType": "facebookGraphApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"name\": \"{{ $json.ad_name }}\",\n  \"object_story_spec\": {\n    \"page_id\": \"{{ $json.config.facebook_page_id }}\",\n    \"video_data\": {\n      \"video_id\": \"{{ $json.video_id }}\",\n      \"message\": {{ JSON.stringify($json.config.primary_text) }},\n      \"title\": {{ JSON.stringify($json.config.headline) }},\n      \"link_description\": {{ JSON.stringify($json.config.description || '') }},\n      \"call_to_action\": {\n        \"type\": \"{{ $json.config.call_to_action }}\",\n        \"value\": {\n          \"link\": \"{{ $json.config.website_url }}\"\n        }\n      }\n    }\n  },\n  \"degrees_of_freedom_spec\": {\n    \"creative_features_spec\": {\n      \"standard_enhancements\": {\n        \"enroll_status\": \"OPT_OUT\"\n      }\n    }\n  }\n}",
+        "jsonBody": "={\n  \"name\": \"{{ $json.creative_name }}\",\n  \"object_story_spec\": {\n    \"page_id\": \"{{ $json.config.facebook_page_id }}\",\n    \"video_data\": {\n      \"video_id\": \"{{ $json.video_id }}\",\n      \"message\": {{ JSON.stringify($json.config.primary_text) }},\n      \"title\": {{ JSON.stringify($json.config.headline) }},\n      \"link_description\": {{ JSON.stringify($json.config.description || '') }},\n      \"call_to_action\": {\n        \"type\": \"{{ $json.config.call_to_action }}\",\n        \"value\": {\n          \"link\": \"{{ $json.config.website_url }}\"\n        }\n      }\n    }\n  },\n  \"degrees_of_freedom_spec\": {\n    \"creative_features_spec\": {\n      \"standard_enhancements\": {\n        \"enroll_status\": \"OPT_OUT\"\n      }\n    }\n  }\n}",
         "options": {}
       },
       "id": "create-video-creative",
       "name": "Create Video Creative",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2440, 200],
+      "position": [2200, 100],
       "credentials": {
         "facebookGraphApi": {
           "id": "META_CREDENTIAL_ID",
@@ -456,14 +388,14 @@
         "nodeCredentialType": "facebookGraphApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"name\": \"{{ $json.ad_name }}\",\n  \"object_story_spec\": {\n    \"page_id\": \"{{ $json.config.facebook_page_id }}\",\n    \"link_data\": {\n      \"image_hash\": \"{{ $json.image_hash }}\",\n      \"link\": \"{{ $json.config.website_url }}\",\n      \"message\": {{ JSON.stringify($json.config.primary_text) }},\n      \"name\": {{ JSON.stringify($json.config.headline) }},\n      \"description\": {{ JSON.stringify($json.config.description || '') }},\n      \"call_to_action\": {\n        \"type\": \"{{ $json.config.call_to_action }}\"\n      }\n    }\n  },\n  \"degrees_of_freedom_spec\": {\n    \"creative_features_spec\": {\n      \"standard_enhancements\": {\n        \"enroll_status\": \"OPT_OUT\"\n      }\n    }\n  }\n}",
+        "jsonBody": "={\n  \"name\": \"{{ $json.creative_name }}\",\n  \"object_story_spec\": {\n    \"page_id\": \"{{ $json.config.facebook_page_id }}\",\n    \"link_data\": {\n      \"image_hash\": \"{{ $json.image_hash }}\",\n      \"link\": \"{{ $json.config.website_url }}\",\n      \"message\": {{ JSON.stringify($json.config.primary_text) }},\n      \"name\": {{ JSON.stringify($json.config.headline) }},\n      \"description\": {{ JSON.stringify($json.config.description || '') }},\n      \"call_to_action\": {\n        \"type\": \"{{ $json.config.call_to_action }}\"\n      }\n    }\n  },\n  \"degrees_of_freedom_spec\": {\n    \"creative_features_spec\": {\n      \"standard_enhancements\": {\n        \"enroll_status\": \"OPT_OUT\"\n      }\n    }\n  }\n}",
         "options": {}
       },
       "id": "create-image-creative",
       "name": "Create Image Creative",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2440, 400],
+      "position": [2200, 300],
       "credentials": {
         "facebookGraphApi": {
           "id": "META_CREDENTIAL_ID",
@@ -473,23 +405,23 @@
     },
     {
       "parameters": {
-        "jsCode": "const creativeResult = $input.first().json;\nconst prevData = $('Set Video ID').first().json;\n\nreturn [{\n  json: {\n    creative_id: creativeResult.id,\n    ad_name: prevData.ad_name,\n    media_type: 'video',\n    file_name: prevData.file_name,\n    config: prevData.config\n  }\n}];"
+        "jsCode": "const result = $input.first().json;\nconst prevData = $('Set Video ID').first().json;\n\nreturn [{\n  json: {\n    ...prevData,\n    creative_id: result.id\n  }\n}];"
       },
       "id": "save-video-creative",
       "name": "Save Video Creative",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2680, 200]
+      "position": [2440, 100]
     },
     {
       "parameters": {
-        "jsCode": "const creativeResult = $input.first().json;\nconst prevData = $('Set Image Hash').first().json;\n\nreturn [{\n  json: {\n    creative_id: creativeResult.id,\n    ad_name: prevData.ad_name,\n    media_type: 'image',\n    file_name: prevData.file_name,\n    config: prevData.config\n  }\n}];"
+        "jsCode": "const result = $input.first().json;\nconst prevData = $('Set Image Hash').first().json;\n\nreturn [{\n  json: {\n    ...prevData,\n    creative_id: result.id\n  }\n}];"
       },
       "id": "save-image-creative",
       "name": "Save Image Creative",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2680, 400]
+      "position": [2440, 300]
     },
     {
       "parameters": {
@@ -501,17 +433,17 @@
       "name": "Merge Creatives",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
-      "position": [2920, 300]
+      "position": [2680, 200]
     },
     {
       "parameters": {
-        "jsCode": "const allCreatives = $input.all();\nconst firstItem = allCreatives[0].json;\nconst config = firstItem.config;\n\n// Prepare creatives list for later\nconst creativesList = allCreatives.map(item => ({\n  creative_id: item.json.creative_id,\n  ad_name: item.json.ad_name,\n  media_type: item.json.media_type,\n  file_name: item.json.file_name\n}));\n\nreturn [{\n  json: {\n    config: config,\n    creatives: creativesList,\n    total_creatives: creativesList.length\n  }\n}];"
+        "jsCode": "const allCreatives = $input.all();\nconst firstItem = allCreatives[0].json;\n\nconst creativesList = allCreatives.map(item => ({\n  creative_id: item.json.creative_id,\n  creative_name: item.json.creative_name,\n  media_type: item.json.media_type,\n  file_name: item.json.file_name\n}));\n\nreturn [{\n  json: {\n    folder_id: firstItem.folder_id,\n    folder_name: firstItem.folder_name,\n    adset_name: firstItem.adset_name,\n    config: firstItem.config,\n    creatives: creativesList,\n    total_creatives: creativesList.length\n  }\n}];"
       },
       "id": "prepare-adset",
       "name": "Prepare AdSet Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3160, 300]
+      "position": [2920, 200]
     },
     {
       "parameters": {
@@ -521,14 +453,14 @@
         "nodeCredentialType": "facebookGraphApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"name\": \"{{ $json.config.adset_name }}\",\n  \"campaign_id\": \"{{ $json.config.campaign_id }}\",\n  \"status\": \"PAUSED\",\n  \"daily_budget\": {{ $json.config.daily_budget_cents }},\n  \"billing_event\": \"IMPRESSIONS\",\n  \"optimization_goal\": \"{{ $json.config.optimization_goal }}\",\n  \"bid_strategy\": \"{{ $json.config.bid_strategy }}\",\n  \"promoted_object\": {\n    \"pixel_id\": \"{{ $json.config.pixel_id }}\",\n    \"custom_event_type\": \"{{ $json.config.conversion_event }}\"\n  },\n  \"targeting\": {\n    \"geo_locations\": {\n      \"countries\": {{ JSON.stringify($json.config.target_countries) }}\n    }\n  }\n}",
+        "jsonBody": "={\n  \"name\": \"{{ $json.adset_name }}\",\n  \"campaign_id\": \"{{ $json.config.campaign_id }}\",\n  \"status\": \"PAUSED\",\n  \"daily_budget\": {{ $json.config.daily_budget_cents }},\n  \"billing_event\": \"IMPRESSIONS\",\n  \"optimization_goal\": \"{{ $json.config.optimization_goal }}\",\n  \"bid_strategy\": \"{{ $json.config.bid_strategy }}\",\n  \"promoted_object\": {\n    \"pixel_id\": \"{{ $json.config.pixel_id }}\",\n    \"custom_event_type\": \"{{ $json.config.conversion_event }}\"\n  },\n  \"targeting\": {\n    \"geo_locations\": {\n      \"countries\": {{ JSON.stringify($json.config.target_countries) }}\n    }\n  }\n}",
         "options": {}
       },
       "id": "create-adset",
       "name": "Create AdSet",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3400, 300],
+      "position": [3160, 200],
       "credentials": {
         "facebookGraphApi": {
           "id": "META_CREDENTIAL_ID",
@@ -538,23 +470,23 @@
     },
     {
       "parameters": {
-        "jsCode": "const adsetResult = $input.first().json;\nconst prevData = $('Prepare AdSet Data').first().json;\n\nreturn [{\n  json: {\n    adset_id: adsetResult.id,\n    adset_name: prevData.config.adset_name,\n    config: prevData.config,\n    creatives: prevData.creatives\n  }\n}];"
+        "jsCode": "const adsetResult = $input.first().json;\nconst prevData = $('Prepare AdSet Data').first().json;\n\nreturn [{\n  json: {\n    adset_id: adsetResult.id,\n    adset_name: prevData.adset_name,\n    folder_id: prevData.folder_id,\n    folder_name: prevData.folder_name,\n    config: prevData.config,\n    creatives: prevData.creatives\n  }\n}];"
       },
       "id": "save-adset-id",
       "name": "Save AdSet ID",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3640, 300]
+      "position": [3400, 200]
     },
     {
       "parameters": {
-        "jsCode": "const data = $input.first().json;\nconst creatives = data.creatives;\n\nreturn creatives.map(creative => ({\n  json: {\n    adset_id: data.adset_id,\n    adset_name: data.adset_name,\n    creative_id: creative.creative_id,\n    ad_name: creative.ad_name,\n    media_type: creative.media_type,\n    file_name: creative.file_name,\n    config: data.config\n  }\n}));"
+        "jsCode": "const data = $input.first().json;\n\nreturn data.creatives.map(creative => ({\n  json: {\n    adset_id: data.adset_id,\n    adset_name: data.adset_name,\n    folder_id: data.folder_id,\n    folder_name: data.folder_name,\n    creative_id: creative.creative_id,\n    creative_name: creative.creative_name,\n    media_type: creative.media_type,\n    file_name: creative.file_name,\n    config: data.config\n  }\n}));"
       },
       "id": "split-for-ads",
       "name": "Split for Ads",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3880, 300]
+      "position": [3640, 200]
     },
     {
       "parameters": {
@@ -564,14 +496,14 @@
         "nodeCredentialType": "facebookGraphApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"name\": \"{{ $json.ad_name }}\",\n  \"adset_id\": \"{{ $json.adset_id }}\",\n  \"creative\": {\n    \"creative_id\": \"{{ $json.creative_id }}\"\n  },\n  \"status\": \"PAUSED\"\n}",
+        "jsonBody": "={\n  \"name\": \"{{ $json.creative_name }}\",\n  \"adset_id\": \"{{ $json.adset_id }}\",\n  \"creative\": {\n    \"creative_id\": \"{{ $json.creative_id }}\"\n  },\n  \"status\": \"PAUSED\"\n}",
         "options": {}
       },
       "id": "create-ad",
       "name": "Create Ad",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [4120, 300],
+      "position": [3880, 200],
       "credentials": {
         "facebookGraphApi": {
           "id": "META_CREDENTIAL_ID",
@@ -581,13 +513,13 @@
     },
     {
       "parameters": {
-        "jsCode": "const adResult = $input.first().json;\nconst prevData = $('Split for Ads').item.json;\n\nreturn [{\n  json: {\n    ad_id: adResult.id,\n    ad_name: prevData.ad_name,\n    adset_id: prevData.adset_id,\n    adset_name: prevData.adset_name,\n    creative_id: prevData.creative_id,\n    media_type: prevData.media_type,\n    file_name: prevData.file_name,\n    campaign_id: prevData.config.campaign_id,\n    config: prevData.config\n  }\n}];"
+        "jsCode": "const adResult = $input.first().json;\nconst prevData = $('Split for Ads').item.json;\n\nreturn [{\n  json: {\n    ad_id: adResult.id,\n    ad_name: prevData.creative_name,\n    adset_id: prevData.adset_id,\n    adset_name: prevData.adset_name,\n    folder_id: prevData.folder_id,\n    folder_name: prevData.folder_name,\n    creative_id: prevData.creative_id,\n    media_type: prevData.media_type,\n    file_name: prevData.file_name,\n    campaign_id: prevData.config.campaign_id,\n    config: prevData.config\n  }\n}];"
       },
       "id": "format-ad-result",
       "name": "Format Ad Result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [4360, 300]
+      "position": [4120, 200]
     },
     {
       "parameters": {
@@ -606,6 +538,7 @@
           "mappingMode": "defineBelow",
           "value": {
             "Timestamp": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+            "FolderName": "={{ $json.folder_name }}",
             "FileName": "={{ $json.file_name }}",
             "AdName": "={{ $json.ad_name }}",
             "MediaType": "={{ $json.media_type }}",
@@ -618,6 +551,7 @@
           },
           "schema": [
             {"id": "Timestamp", "displayName": "Timestamp", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
+            {"id": "FolderName", "displayName": "FolderName", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
             {"id": "FileName", "displayName": "FileName", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
             {"id": "AdName", "displayName": "AdName", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
             {"id": "MediaType", "displayName": "MediaType", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true},
@@ -635,7 +569,7 @@
       "name": "Log to Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [4600, 300],
+      "position": [4360, 200],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "GOOGLE_CREDENTIAL_ID",
@@ -645,13 +579,50 @@
     },
     {
       "parameters": {
-        "jsCode": "const allAds = $input.all();\nconst firstAd = allAds[0].json;\n\nreturn [{\n  json: {\n    total_ads: allAds.length,\n    adset_name: firstAd.adset_name,\n    adset_id: firstAd.adset_id,\n    campaign_id: firstAd.campaign_id,\n    daily_budget_kr: firstAd.config.daily_budget_kr,\n    ads: allAds.map(a => ({\n      name: a.json.ad_name,\n      type: a.json.media_type,\n      id: a.json.ad_id\n    })),\n    slack_channel: firstAd.config.slack_channel\n  }\n}];"
+        "jsCode": "const allAds = $input.all();\n\n// Group by folder\nconst folders = {};\nfor (const ad of allAds) {\n  const folderId = ad.json.folder_id;\n  if (!folders[folderId]) {\n    folders[folderId] = {\n      folder_id: folderId,\n      folder_name: ad.json.folder_name,\n      adset_name: ad.json.adset_name,\n      adset_id: ad.json.adset_id,\n      ads: [],\n      config: ad.json.config\n    };\n  }\n  folders[folderId].ads.push({\n    name: ad.json.ad_name,\n    type: ad.json.media_type,\n    id: ad.json.ad_id\n  });\n}\n\nreturn Object.values(folders).map(f => ({ json: f }));"
       },
-      "id": "prepare-notification",
-      "name": "Prepare Notification",
+      "id": "group-by-folder",
+      "name": "Group by Folder",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [4840, 300]
+      "position": [4600, 200]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "operation": "move",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.folder_id }}",
+          "mode": "id"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.config.uploaded_folder_id }}",
+          "mode": "id"
+        }
+      },
+      "id": "move-folder",
+      "name": "Move to Uploaded",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [4840, 200],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GOOGLE_CREDENTIAL_ID",
+          "name": "Google Drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const folders = $input.all();\n\nconst totalAds = folders.reduce((sum, f) => sum + f.json.ads.length, 0);\nconst totalAdSets = folders.length;\nconst config = folders[0].json.config;\n\nconst summary = folders.map(f => \n  `• ${f.json.adset_name}: ${f.json.ads.length} annonser`\n).join('\\n');\n\nreturn [{\n  json: {\n    total_ads: totalAds,\n    total_adsets: totalAdSets,\n    daily_budget_kr: config.daily_budget_kr,\n    campaign_id: config.campaign_id,\n    summary: summary,\n    folders: folders.map(f => f.json),\n    slack_channel: config.slack_channel\n  }\n}];"
+      },
+      "id": "prepare-summary",
+      "name": "Prepare Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [5080, 200]
     },
     {
       "parameters": {
@@ -680,7 +651,7 @@
       "name": "Has Slack?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [5080, 300]
+      "position": [5320, 200]
     },
     {
       "parameters": {
@@ -690,97 +661,14 @@
           "value": "={{ $json.slack_channel }}",
           "mode": "id"
         },
-        "text": "=:white_check_mark: *Meta Ads skapade!*\n\n*Ad Set:* {{ $json.adset_name }}\n*Ad Set ID:* {{ $json.adset_id }}\n*Campaign ID:* {{ $json.campaign_id }}\n*Budget:* {{ $json.daily_budget_kr }} kr/dag\n*Antal annonser:* {{ $json.total_ads }}\n\n*Annonser:*\n{{ $json.ads.map(a => '• ' + a.name + ' (' + a.type + ')').join('\\n') }}\n\n_Status: PAUSED - Granska och aktivera i Ads Manager_",
+        "text": "=:white_check_mark: *Meta Ads uppladdning klar!*\n\n*Antal Ad Sets:* {{ $json.total_adsets }}\n*Antal annonser:* {{ $json.total_ads }}\n*Budget:* {{ $json.daily_budget_kr }} kr/dag per Ad Set\n*Campaign ID:* {{ $json.campaign_id }}\n\n*Sammanfattning:*\n{{ $json.summary }}\n\n_Status: PAUSED - Granska och aktivera i Ads Manager_",
         "otherOptions": {}
       },
       "id": "slack-success",
       "name": "Slack Success",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [5320, 200],
-      "credentials": {
-        "slackApi": {
-          "id": "SLACK_CREDENTIAL_ID",
-          "name": "Slack"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "={{ $('Merge Settings').first().json.slack_channel }}",
-          "mode": "id"
-        },
-        "text": "=:x: *Meta Ads misslyckades*\n\n*Fel:* Inga filer hittades i mappen.\n\nKontrollera att mappen innehåller bilder (JPG, PNG) eller videor (MP4).",
-        "otherOptions": {}
-      },
-      "id": "slack-no-files",
-      "name": "Slack No Files",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
-      "position": [520, 500],
-      "credentials": {
-        "slackApi": {
-          "id": "SLACK_CREDENTIAL_ID",
-          "name": "Slack"
-        }
-      }
-    },
-    {
-      "parameters": {},
-      "id": "error-trigger",
-      "name": "Error Trigger",
-      "type": "n8n-nodes-base.errorTrigger",
-      "typeVersion": 1,
-      "position": [-1400, 700]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "has-slack-error",
-              "leftValue": "={{ $json.execution?.customData?.slack_channel || '' }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "notEmpty"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "check-slack-error",
-      "name": "Has Slack (Error)?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [-1160, 700]
-    },
-    {
-      "parameters": {
-        "select": "channel",
-        "channelId": {
-          "__rl": true,
-          "value": "={{ $json.execution?.customData?.slack_channel }}",
-          "mode": "id"
-        },
-        "text": "=:x: *Meta Ads Workflow Fel*\n\n*Fel:* {{ $json.error?.message || 'Okänt fel' }}\n*Nod:* {{ $json.execution?.error?.node?.name || 'Okänd' }}\n\nKontrollera n8n för detaljer.",
-        "otherOptions": {}
-      },
-      "id": "slack-error",
-      "name": "Slack Error",
-      "type": "n8n-nodes-base.slack",
-      "typeVersion": 2.2,
-      "position": [-920, 600],
+      "position": [5560, 100],
       "credentials": {
         "slackApi": {
           "id": "SLACK_CREDENTIAL_ID",
@@ -794,35 +682,54 @@
       "name": "Done",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [5320, 400]
+      "position": [5560, 300]
+    },
+    {
+      "parameters": {},
+      "id": "noop-no-folders",
+      "name": "No Folders Found",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [-200, 500]
+    },
+    {
+      "parameters": {},
+      "id": "noop-no-files",
+      "name": "No Files in Folder",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [520, 400]
     }
   ],
   "connections": {
-    "Submit Form": {
-      "main": [[{"node": "Format Form Data", "type": "main", "index": 0}]]
-    },
-    "Format Form Data": {
+    "Klicka Run för att starta": {
       "main": [[{"node": "Get Settings", "type": "main", "index": 0}]]
     },
     "Get Settings": {
-      "main": [[{"node": "Merge Settings", "type": "main", "index": 0}]]
+      "main": [[{"node": "Parse Settings", "type": "main", "index": 0}]]
     },
-    "Merge Settings": {
-      "main": [[{"node": "Get Folder Info", "type": "main", "index": 0}]]
+    "Parse Settings": {
+      "main": [[{"node": "List Ad Set Folders", "type": "main", "index": 0}]]
     },
-    "Get Folder Info": {
-      "main": [[{"node": "Set AdSet Name", "type": "main", "index": 0}]]
+    "List Ad Set Folders": {
+      "main": [[{"node": "Has Folders?", "type": "main", "index": 0}]]
     },
-    "Set AdSet Name": {
-      "main": [[{"node": "Search Files", "type": "main", "index": 0}]]
+    "Has Folders?": {
+      "main": [
+        [{"node": "Prepare Folders", "type": "main", "index": 0}],
+        [{"node": "No Folders Found", "type": "main", "index": 0}]
+      ]
     },
-    "Search Files": {
+    "Prepare Folders": {
+      "main": [[{"node": "List Files in Folder", "type": "main", "index": 0}]]
+    },
+    "List Files in Folder": {
       "main": [[{"node": "Has Files?", "type": "main", "index": 0}]]
     },
     "Has Files?": {
       "main": [
         [{"node": "Validate Files", "type": "main", "index": 0}],
-        [{"node": "Slack No Files", "type": "main", "index": 0}]
+        [{"node": "No Files in Folder", "type": "main", "index": 0}]
       ]
     },
     "Validate Files": {
@@ -833,15 +740,9 @@
     },
     "Video or Image?": {
       "main": [
-        [{"node": "Format Video", "type": "main", "index": 0}],
-        [{"node": "Format Image", "type": "main", "index": 0}]
+        [{"node": "Rename Video Binary", "type": "main", "index": 0}],
+        [{"node": "Rename Image Binary", "type": "main", "index": 0}]
       ]
-    },
-    "Format Video": {
-      "main": [[{"node": "Rename Video Binary", "type": "main", "index": 0}]]
-    },
-    "Format Image": {
-      "main": [[{"node": "Rename Image Binary", "type": "main", "index": 0}]]
     },
     "Rename Video Binary": {
       "main": [[{"node": "Upload Video", "type": "main", "index": 0}]]
@@ -901,24 +802,21 @@
       "main": [[{"node": "Log to Sheet", "type": "main", "index": 0}]]
     },
     "Log to Sheet": {
-      "main": [[{"node": "Prepare Notification", "type": "main", "index": 0}]]
+      "main": [[{"node": "Group by Folder", "type": "main", "index": 0}]]
     },
-    "Prepare Notification": {
+    "Group by Folder": {
+      "main": [[{"node": "Move to Uploaded", "type": "main", "index": 0}]]
+    },
+    "Move to Uploaded": {
+      "main": [[{"node": "Prepare Summary", "type": "main", "index": 0}]]
+    },
+    "Prepare Summary": {
       "main": [[{"node": "Has Slack?", "type": "main", "index": 0}]]
     },
     "Has Slack?": {
       "main": [
         [{"node": "Slack Success", "type": "main", "index": 0}],
         [{"node": "Done", "type": "main", "index": 0}]
-      ]
-    },
-    "Error Trigger": {
-      "main": [[{"node": "Check Slack (Error)?", "type": "main", "index": 0}]]
-    },
-    "Check Slack (Error)?": {
-      "main": [
-        [{"node": "Slack Error", "type": "main", "index": 0}],
-        []
       ]
     }
   },

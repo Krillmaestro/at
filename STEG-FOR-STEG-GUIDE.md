@@ -1,20 +1,38 @@
 # META ADS AUTOMATION - KOMPLETT GUIDE
 
-Den här guiden visar exakt hur du sätter upp automatisk annons-skapning för Facebook/Instagram.
+Den har guiden visar exakt hur du satter upp automatisk annons-skapning for Facebook/Instagram.
 
 ---
 
-## ÖVERSIKT: Så fungerar det
+## OVERSIKT: Sa fungerar det
 
 ```
-1. Du skapar en mapp i Google Drive med bilder/videor
-2. Du fyller i ett enkelt formulär
+GOOGLE DRIVE STRUKTUR:
+======================
+
+Creative Folder/              <-- Huvudmappen (ID sparas i Settings)
+├── Sommarkampanj_Skor/       <-- Mappnamn = Ad Set namn
+│   ├── UGC_Hook_9x16.mp4     <-- Filnamn = Annonsnamn
+│   ├── Product_Demo.mp4
+│   └── Lifestyle.jpg
+│
+├── Hostkampanj_Jackor/       <-- Mappnamn = Ad Set namn
+│   └── Influencer_Video.mp4
+│
+Uploaded/                     <-- Hit flyttas klara mappar
+├── Sommarkampanj_Skor/
+└── ...
+
+WORKFLOW:
+=========
+1. Editors laddar upp en mapp i Creative Folder
+2. Du klickar "Run" i n8n
 3. Automatiseringen:
-   - Hämtar alla filer från mappen
-   - Laddar upp dem till Meta
-   - Skapar ett nytt Ad Set (namngivet efter mappen)
-   - Skapar annonser för varje fil
-   - Loggar allt till Google Sheets
+   - Hittar alla mappar i Creative Folder
+   - For varje mapp: skapar Ad Set (mappnamn)
+   - For varje fil: skapar annons (filnamn)
+   - Flyttar mappen till Uploaded
+   - Loggar allt till Google Sheet
    - Skickar Slack-notis (valfritt)
 ```
 
@@ -23,324 +41,334 @@ Den här guiden visar exakt hur du sätter upp automatisk annons-skapning för F
 ## DEL 1: SKAPA GOOGLE SHEET
 
 ### Steg 1.1: Skapa nytt sheet
-1. Gå till https://sheets.google.com
-2. Klicka på **"+ Blank"** (eller "Tomt")
+1. Ga till https://sheets.google.com
+2. Klicka pa **"+ Blank"** (eller "Tomt")
 
-### Steg 1.2: Öppna Apps Script
-1. I menyn, klicka på **Extensions** (Tillägg)
-2. Klicka på **Apps Script**
+### Steg 1.2: Oppna Apps Script
+1. I menyn, klicka pa **Extensions** (Tillagg)
+2. Klicka pa **Apps Script**
 
 ### Steg 1.3: Klistra in setup-scriptet
-1. En ny flik öppnas med kod-editor
+1. En ny flik oppnas med kod-editor
 2. **Markera och radera** all befintlig kod
-3. Gå till filen `setup-google-sheet.js` i detta repo
-4. **Kopiera ALLT innehåll**
+3. Ga till filen `setup-google-sheet.js` i detta repo
+4. **Kopiera ALLT innehall**
 5. **Klistra in** i Apps Script-editorn
 
-### Steg 1.4: Kör scriptet
-1. Klicka på **disketten** (eller Ctrl+S) för att spara
-2. Klicka på **▶ Run** (play-knappen)
-3. Första gången får du en varning:
+### Steg 1.4: Kor scriptet
+1. Klicka pa **disketten** (eller Ctrl+S) for att spara
+2. Klicka pa **Run** (play-knappen)
+3. Forsta gangen far du en varning:
    - Klicka **Review permissions**
-   - Välj ditt Google-konto
-   - Klicka **Advanced** → **Go to [projektnamn] (unsafe)**
+   - Valj ditt Google-konto
+   - Klicka **Advanced** -> **Go to [projektnamn] (unsafe)**
    - Klicka **Allow**
-4. Vänta tills en popup visas med "SETUP KLAR!"
+4. Vanta tills en popup visas med "SETUP KLAR!"
 
 ### Steg 1.5: Kopiera Sheet ID
 1. Popupen visar ditt **Sheet ID** - **KOPIERA DETTA!**
-2. Alternativt: titta på URL:en i webbläsaren:
+2. Alternativt: titta pa URL:en i webblasaren:
    ```
    https://docs.google.com/spreadsheets/d/ABC123XYZ789/edit
    ```
-   Delen mellan `/d/` och `/edit` är ditt Sheet ID
-
-### Steg 1.6: Fyll i Settings
-Gå till Settings-fliken och fyll i:
-
-| Setting | Var du hittar det |
-|---------|-------------------|
-| ad_account_id | Business Settings → Ad Accounts → välj konto → kopiera numret |
-| facebook_page_id | Din Facebook-sida → About → Page ID |
-| pixel_id | Events Manager → Data Sources → välj pixel → kopiera ID |
-| daily_budget | Din budget per dag i KRONOR (t.ex. 100) |
-| target_countries | Landskoder (t.ex. SE eller SE,NO,DK) |
-| website_url | Din landningssida (t.ex. https://dinbutik.se/kampanj) |
+   Delen mellan `/d/` och `/edit` ar ditt Sheet ID
 
 ---
 
 ## DEL 2: SKAPA META-APP OCH ACCESS TOKEN
 
-### Steg 2.1: Gå till Meta for Developers
-1. Öppna https://developers.facebook.com
+### Steg 2.1: Ga till Meta for Developers
+1. Oppna https://developers.facebook.com
 2. Logga in med ditt Facebook-konto
 
 ### Steg 2.2: Skapa ny app
-1. Klicka på **My Apps** uppe till höger
-2. Klicka på **Create App**
-3. Välj **Other** → Klicka **Next**
-4. Välj **Business** → Klicka **Next**
+1. Klicka pa **My Apps** uppe till hoger
+2. Klicka pa **Create App**
+3. Valj **Other** -> Klicka **Next**
+4. Valj **Business** -> Klicka **Next**
 5. Fyll i:
    - **App name:** n8n Ads Automation
    - **App contact email:** din email
 6. Klicka **Create app**
 
-### Steg 2.3: Lägg till Marketing API
-1. På dashboard-sidan, scrolla ner till "Add products to your app"
+### Steg 2.3: Lagg till Marketing API
+1. Pa dashboard-sidan, scrolla ner till "Add products to your app"
 2. Hitta **Marketing API**
 3. Klicka **Set up**
 
 ### Steg 2.4: Generera Access Token
-1. I vänstermenyn under Marketing API, klicka på **Tools**
+1. I vanstermenyn under Marketing API, klicka pa **Tools**
 2. Under "Get Access Token", bocka i:
-   - ☑ ads_management
-   - ☑ ads_read
+   - ads_management
+   - ads_read
 3. Klicka **Get token**
-4. **KOPIERA TOKEN** som visas (lång textsträng)
+4. **KOPIERA TOKEN** som visas (lang textstrang)
 
-**OBS:** Denna token går ut efter ~60 dagar. Se DEL 6 för permanent token.
+**OBS:** Denna token gar ut efter ~60 dagar. Se DEL 7 for permanent token.
 
 ---
 
-## DEL 3: SKAPA GOOGLE DRIVE-MAPP
+## DEL 3: SKAPA GOOGLE DRIVE-STRUKTUR
 
-### Steg 3.1: Skapa mapp
-1. Gå till https://drive.google.com
-2. Klicka **+ New** → **New folder**
-3. Döp mappen till något beskrivande, t.ex. "Kampanj Sommar 2024"
-   - **VIKTIGT:** Mappnamnet blir Ad Set-namnet!
+### Steg 3.1: Skapa Creative Folder
+1. Ga till https://drive.google.com
+2. Klicka **+ New** -> **New folder**
+3. Dop mappen till **"Creative Folder"** (eller valfritt namn)
 4. Klicka **Create**
 
-### Steg 3.2: Ladda upp filer
-1. Öppna mappen
-2. Dra in dina bilder/videor eller klicka **+ New** → **File upload**
-
-**Filkrav:**
-- Bilder: JPG, PNG, WebP (max 30 MB)
-- Videor: MP4, MOV (max 4 GB)
-- Filnamn: Använd bokstäver, siffror, bindestreck och understreck
-
-### Steg 3.3: Kopiera mapp-URL
-1. Titta på URL:en i webbläsaren när du är i mappen
-2. Den ser ut så här:
+### Steg 3.2: Kopiera Creative Folder ID
+1. Oppna mappen
+2. Titta pa URL:en:
    ```
    https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz
    ```
-3. **Kopiera hela URL:en** - du behöver den i formuläret
+3. **Kopiera ID:t** (delen efter `/folders/`)
+
+### Steg 3.3: Skapa Uploaded folder
+1. Ga tillbaka till rot-nivån i Drive
+2. Klicka **+ New** -> **New folder**
+3. Dop mappen till **"Uploaded"**
+4. Kopiera dess ID ocksa (samma satt som ovan)
+
+### Steg 3.4: Dela mapparna (om editors anvander andra konton)
+1. Hogerklicka pa Creative Folder
+2. Klicka **Share**
+3. Lagg till dina editors email-adresser
+4. Ge dem **Editor**-rattigheter
+5. Gor samma for Uploaded-mappen
 
 ---
 
-## DEL 4: INSTALLERA N8N-WORKFLOW
+## DEL 4: SKAPA KAMPANJ I META ADS MANAGER
 
-### Steg 4.1: Öppna n8n
-1. Öppna din n8n-installation i webbläsaren
+### Steg 4.1: Ga till Ads Manager
+1. Oppna https://adsmanager.facebook.com
 
-### Steg 4.2: Importera workflow
-1. Klicka på **+** för att skapa nytt workflow
-2. Klicka på **⋮** (tre prickar) uppe till höger
-3. Välj **Import from file...**
-4. Välj filen `meta-ads-automation-pro.json`
-
-### Steg 4.3: Skapa Google-credentials
-1. Klicka på noden **"Get Settings"**
-2. I panelen till höger, klicka på **Credential to connect with**
-3. Klicka **Create new credential**
-4. Välj **Google Sheets OAuth2 API**
-5. Följ instruktionerna:
-   - Du behöver skapa OAuth-credentials i Google Cloud Console
-   - Eller använd befintliga om du har
-6. När du är klar, klicka **Save**
-
-**Gör samma sak för Google Drive:**
-1. Klicka på noden **"Get Folder Info"**
-2. Skapa/välj **Google Drive OAuth2 API** credential
-
-### Steg 4.4: Skapa Meta-credentials
-1. Klicka på noden **"Upload Video"** eller **"Upload Image"**
-2. Klicka på **Credential to connect with**
-3. Klicka **Create new credential**
-4. Välj **Facebook Graph API**
-5. Klistra in din **Access Token** från DEL 2
-6. Klicka **Save**
-
-### Steg 4.5: Uppdatera Sheet ID
-1. Klicka på noden **"Get Settings"**
-2. I fältet **Document ID**, ersätt `YOUR_SHEET_ID_HERE` med ditt Sheet ID
-3. Gör samma sak för noden **"Log to Sheet"**
-
-### Steg 4.6: Aktivera workflow
-1. Klicka på växeln uppe till höger som säger **Inactive**
-2. Den ska nu visa **Active**
-3. Kopiera **Webhook URL** som visas i noden "Submit Form"
-
----
-
-## DEL 5: SKAPA KAMPANJ I META ADS MANAGER
-
-### Steg 5.1: Gå till Ads Manager
-1. Öppna https://adsmanager.facebook.com
-
-### Steg 5.2: Skapa ny kampanj
-1. Klicka på **+ Create**
-2. Välj kampanjmål: **Sales** (Försäljning)
+### Steg 4.2: Skapa ny kampanj
+1. Klicka pa **+ Create**
+2. Valj kampanjmal: **Sales** (Forsaljning)
 3. Klicka **Continue**
-4. Ge kampanjen ett namn
-5. **VIKTIGT:** Ställ in kampanjen som **manual** (inte Advantage+)
+4. Ge kampanjen ett namn, t.ex. "Automatiserade Annonser 2024"
+5. **VIKTIGT:** Stall in kampanjen som **manual** (inte Advantage+)
 6. Klicka **Next**
-7. Du behöver INTE skapa Ad Set eller Ads här - bara kampanjen
+7. Du behover INTE skapa Ad Set eller Ads har - bara kampanjen
 8. Publicera kampanjen (den kan vara pausad)
 
-### Steg 5.3: Kopiera Campaign ID
-1. I kampanjlistan, klicka på din kampanj
+### Steg 4.3: Kopiera Campaign ID
+1. I kampanjlistan, klicka pa din kampanj
 2. I URL:en ser du:
    ```
    ...?act=123456789&selected_campaign_ids=987654321...
    ```
-3. `987654321` är ditt **Campaign ID** - kopiera det!
-
-**Alternativt:**
-1. Klicka på kampanjnamnet
-2. I infopanelen till höger visas Campaign ID
+3. `987654321` ar ditt **Campaign ID** - kopiera det!
 
 ---
 
-## DEL 6: TESTA AUTOMATISERINGEN
+## DEL 5: FYLL I SETTINGS
 
-### Steg 6.1: Öppna formuläret
-1. Klistra in Webhook URL:en från DEL 4.6 i webbläsaren
-2. Ett formulär visas
+Oppna ditt Google Sheet och ga till Settings-fliken. Fyll i:
 
-### Steg 6.2: Fyll i formuläret
+### META KONTO (obligatoriskt)
+| Setting | Var du hittar det |
+|---------|-------------------|
+| ad_account_id | Business Settings -> Ad Accounts -> valj konto -> kopiera numret |
+| facebook_page_id | Din Facebook-sida -> About -> Page ID |
+| pixel_id | Events Manager -> Data Sources -> valj pixel -> kopiera ID |
+| campaign_id | Fran DEL 4.3 |
 
-| Fält | Vad du fyller i |
-|------|-----------------|
-| Google Drive Folder URL | URL:en till din mapp (från DEL 3.3) |
-| Campaign ID | Campaign ID (från DEL 5.3) |
-| Primary Text | Din annonstext, t.ex. "Sommarrea - 50% rabatt på allt!" |
-| Headline | Rubrik, t.ex. "Handla nu" |
-| Description | Extra beskrivning (valfritt) |
-| Website URL | Lämna tomt för att använda default från Settings |
-| Call to Action | Välj t.ex. SHOP_NOW |
+### GOOGLE DRIVE (obligatoriskt)
+| Setting | Vad du fyller i |
+|---------|-----------------|
+| creative_folder_id | ID fran DEL 3.2 |
+| uploaded_folder_id | ID fran DEL 3.3 |
 
-### Steg 6.3: Skicka formuläret
-1. Klicka **Submit**
-2. Du ser "Tack! Annons-skapandet har startat..."
+### BUDGET & TARGETING (obligatoriskt)
+| Setting | Exempel |
+|---------|---------|
+| daily_budget | 100 (i kronor, inte cents!) |
+| target_countries | SE (eller SE,NO,DK for flera lander) |
 
-### Steg 6.4: Verifiera
-1. Gå till **Meta Ads Manager**
-2. Öppna din kampanj
-3. Du ska se ett nytt **Ad Set** med samma namn som din Google Drive-mapp
-4. Inuti finns annonser för varje fil
+### ANNONSINNEHALL (obligatoriskt)
+| Setting | Vad det ar |
+|---------|-----------|
+| website_url | Din landningssida, t.ex. https://dinbutik.se/kampanj |
+| primary_text | Huvudtexten i annonsen, t.ex. "Sommarrea - 50% rabatt!" |
+| headline | Rubrik under bilden/videon, t.ex. "Handla nu" |
+| description | Extra beskrivning (valfritt) |
+| call_to_action | SHOP_NOW, LEARN_MORE, SIGN_UP, etc. |
 
+---
+
+## DEL 6: INSTALLERA N8N-WORKFLOW
+
+### Steg 6.1: Oppna n8n
+1. Oppna din n8n-installation i webblasaren
+
+### Steg 6.2: Importera workflow
+1. Klicka pa **+** for att skapa nytt workflow
+2. Klicka pa **...** (tre prickar) uppe till hoger
+3. Valj **Import from file...**
+4. Valj filen `meta-ads-automation-pro.json`
+
+### Steg 6.3: Skapa Google-credentials
+1. Klicka pa noden **"Get Settings"**
+2. I panelen till hoger, klicka pa **Credential to connect with**
+3. Klicka **Create new credential**
+4. Valj **Google Sheets OAuth2 API**
+5. Folj instruktionerna for att koppla ditt Google-konto
+6. Nar du ar klar, klicka **Save**
+
+**Gor samma sak for Google Drive:**
+1. Klicka pa noden **"List Ad Set Folders"**
+2. Skapa/valj **Google Drive OAuth2 API** credential
+
+### Steg 6.4: Skapa Meta-credentials
+1. Klicka pa noden **"Upload Video"**
+2. Klicka pa **Credential to connect with**
+3. Klicka **Create new credential**
+4. Valj **Facebook Graph API**
+5. Klistra in din **Access Token** fran DEL 2
+6. Klicka **Save**
+
+### Steg 6.5: Uppdatera Sheet ID
+1. Klicka pa noden **"Get Settings"**
+2. I faltet **Document ID**, ersatt `YOUR_SHEET_ID_HERE` med ditt Sheet ID
+3. Gor samma sak for noden **"Log to Sheet"**
+
+---
+
+## DEL 7: TESTA AUTOMATISERINGEN
+
+### Steg 7.1: Skapa en testmapp
+1. Ga till din **Creative Folder** i Google Drive
+2. Skapa en ny mapp, t.ex. **"Test_Kampanj"**
+3. Ladda upp 1-2 bilder eller videor i mappen
+
+### Steg 7.2: Kor workflowet
+1. Ga till n8n
+2. Oppna ditt workflow
+3. Klicka pa **"Test workflow"** eller **"Execute workflow"**
+
+### Steg 7.3: Verifiera
+1. Vanta tills workflowet ar klart (grona bockar pa alla noder)
+2. Ga till **Meta Ads Manager**
+3. Du ska se ett nytt **Ad Set** som heter "Test_Kampanj"
+4. Inuti finns annonser for varje fil du laddade upp
 5. Kolla **Google Sheet** - nya rader i "Ads Log"
+6. Kolla **Google Drive** - mappen har flyttats till "Uploaded"
 
 ---
 
-## DEL 7: SKAPA PERMANENT ACCESS TOKEN (Valfritt men rekommenderat)
+## DEL 8: PERMANENT ACCESS TOKEN (Rekommenderat)
 
-Tokens från DEL 2 går ut efter ~60 dagar. Så här skapar du en permanent:
+Tokens fran DEL 2 gar ut efter ~60 dagar. Sa har skapar du en permanent:
 
-### Steg 7.1: Skapa System User
-1. Gå till https://business.facebook.com/settings
-2. Klicka **Users** → **System users** i vänstermenyn
+### Steg 8.1: Skapa System User
+1. Ga till https://business.facebook.com/settings
+2. Klicka **Users** -> **System users** i vanstermenyn
 3. Klicka **Add**
 4. Namn: "n8n Automation"
 5. Role: **Admin**
 6. Klicka **Create system user**
 
-### Steg 7.2: Ge tillgångar
-1. Klicka på din nya system user
+### Steg 8.2: Ge tillgangar
+1. Klicka pa din nya system user
 2. Klicka **Add assets**
-3. Välj **Ad accounts** → välj ditt konto → **Full control**
-4. Välj **Pages** → välj din sida → **Full control**
+3. Valj **Ad accounts** -> valj ditt konto -> **Full control**
+4. Valj **Pages** -> valj din sida -> **Full control**
 5. Klicka **Save changes**
 
-### Steg 7.3: Generera token
-1. Klicka på system usern igen
+### Steg 8.3: Generera token
+1. Klicka pa system usern igen
 2. Klicka **Generate new token**
-3. Välj din app (skapad i DEL 2)
+3. Valj din app (skapad i DEL 2)
 4. Bocka i:
-   - ☑ ads_management
-   - ☑ ads_read
+   - ads_management
+   - ads_read
 5. Klicka **Generate token**
 6. **KOPIERA** den nya token
 7. Uppdatera credentials i n8n med den nya token
 
 ---
 
-## DEL 8: SLACK-NOTIFIKATIONER (Valfritt)
+## DEL 9: SLACK-NOTIFIKATIONER (Valfritt)
 
-### Steg 8.1: Skapa Slack-app
-1. Gå till https://api.slack.com/apps
-2. Klicka **Create New App** → **From scratch**
+### Steg 9.1: Skapa Slack-app
+1. Ga till https://api.slack.com/apps
+2. Klicka **Create New App** -> **From scratch**
 3. App name: "Meta Ads Notifier"
-4. Välj din workspace
+4. Valj din workspace
 5. Klicka **Create App**
 
-### Steg 8.2: Lägg till permissions
-1. I vänstermenyn, klicka **OAuth & Permissions**
-2. Scrolla ner till **Scopes** → **Bot Token Scopes**
+### Steg 9.2: Lagg till permissions
+1. I vanstermenyn, klicka **OAuth & Permissions**
+2. Scrolla ner till **Scopes** -> **Bot Token Scopes**
 3. Klicka **Add an OAuth Scope**
-4. Lägg till:
+4. Lagg till:
    - `chat:write`
    - `chat:write.public`
 
-### Steg 8.3: Installera i workspace
+### Steg 9.3: Installera i workspace
 1. Scrolla upp till **OAuth Tokens for Your Workspace**
 2. Klicka **Install to Workspace**
 3. Klicka **Allow**
 4. **KOPIERA** Bot User OAuth Token
 
-### Steg 8.4: Hitta kanal-ID
-1. Öppna Slack
-2. Högerklicka på kanalen du vill använda
-3. Klicka **Copy link**
-4. URL:en ser ut så här: `https://app.slack.com/client/T123/C456789`
-5. `C456789` är ditt **kanal-ID**
-
-### Steg 8.5: Konfigurera i n8n
-1. I n8n, klicka på en **Slack**-nod
+### Steg 9.4: Konfigurera i n8n och Sheet
+1. I n8n, klicka pa en **Slack**-nod
 2. Skapa ny credential med din Bot Token
-3. Lägg till kanal-ID i Google Sheet → Settings → slack_channel
+3. Lagg till kanal-ID i Google Sheet -> Settings -> slack_channel
+   - Hitta kanal-ID: Hogerklicka pa kanalen -> Copy link -> sista delen
 
 ---
 
-## VANLIGA FEL OCH LÖSNINGAR
+## VANLIGA FEL OCH LOSNINGAR
 
 ### "Saknade settings i Google Sheet"
-**Orsak:** Du har inte fyllt i alla obligatoriska värden i Settings-fliken.
-**Lösning:** Öppna Google Sheet → Settings → fyll i alla värden markerade som obligatoriskt.
+**Orsak:** Du har inte fyllt i alla obligatoriska varden.
+**Losning:** Oppna Google Sheet -> Settings -> fyll i ALLA varden.
 
-### "Website URL saknas"
-**Orsak:** Ingen URL i Settings och ingen angiven i formuläret.
-**Lösning:** Fyll i `website_url` i Settings ELLER ange URL i formuläret.
+### "Inga mappar hittades"
+**Orsak:** Creative Folder ar tom.
+**Losning:** Lagg till minst en mapp med filer i Creative Folder.
 
-### "Inga filer hittades"
-**Orsak:** Mappen är tom eller innehåller ej stödda filer.
-**Lösning:** Lägg till bilder (JPG, PNG) eller videor (MP4) i mappen.
+### "Inga filer hittades i mappen"
+**Orsak:** Undermappen ar tom eller innehaller fel filtyper.
+**Losning:** Lagg till bilder (JPG, PNG) eller videor (MP4) i mappen.
 
 ### "Invalid OAuth token"
-**Orsak:** Din Meta-token har gått ut.
-**Lösning:** Generera ny token (DEL 2.4 eller DEL 7) och uppdatera i n8n.
-
-### "Campaign not found"
-**Orsak:** Fel Campaign ID.
-**Lösning:** Dubbelkolla att du kopierat rätt ID från Ads Manager.
+**Orsak:** Din Meta-token har gatt ut.
+**Losning:** Generera ny token (DEL 2.4 eller DEL 8) och uppdatera i n8n.
 
 ### Annonser skapas men syns inte
 **Orsak:** Annonserna skapas som PAUSED.
-**Lösning:** Gå till Ads Manager → aktivera annonserna manuellt.
+**Losning:** Ga till Ads Manager -> aktivera annonserna manuellt.
+
+### Mappar flyttas inte till Uploaded
+**Orsak:** n8n har inte rattigheter till Uploaded-mappen.
+**Losning:** Kontrollera att samma Google-konto har tillgang till bada mapparna.
 
 ---
 
-## SAMMANFATTNING
+## DAGLIG ANVANDNING
 
-När allt är uppsatt:
+Nar allt ar uppsatt sa har enkelt ar det:
 
-1. **Skapa ny mapp** i Google Drive med bilder/videor
-2. **Öppna formulär-URL:en**
-3. **Fyll i:** mapp-URL, campaign ID, annonstext
-4. **Klicka Submit**
-5. **Klart!** Annonserna skapas automatiskt
+### For Video Editors:
+1. Skapa en mapp i **Creative Folder**
+2. Dop mappen till onskat **Ad Set-namn**
+3. Ladda upp bilder/videor
+4. Dop filerna till onskade **annonsnamn**
+5. Klart - meddela att ny mapp finns
 
-Alla annonser loggas i Google Sheet och du får Slack-notis (om konfigurerat).
+### For dig som kor annonser:
+1. Oppna **n8n**
+2. Klicka **"Execute workflow"**
+3. Klart! Alla nya mappar processas automatiskt
+
+### Resultat:
+- Nya Ad Sets skapas i din kampanj
+- Varje fil blir en annons
+- Mappar flyttas till Uploaded
+- Allt loggas i Google Sheet
+- Du far Slack-notis (om konfigurerat)
