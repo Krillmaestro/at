@@ -37,9 +37,9 @@ function setupMetaAdsSheet() {
     // Konto-inställningar
     ['', ''],
     ['=== META KONTO (obligatoriskt) ===', ''],
-    ['ad_account_id', ''],
-    ['facebook_page_id', ''],
-    ['pixel_id', ''],
+    ['ad_account_id', '261297039993717'],
+    ['facebook_page_id', '334560683076234'],
+    ['pixel_id', '1485774658810931'],
     ['campaign_id', ''],
     ['', ''],
 
