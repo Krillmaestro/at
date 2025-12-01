@@ -1,0 +1,6 @@
+## TAB 1: Ad Accounts
+account_id,account_name,status
+123456789,Example Ad Account,active
+
+## TAB 2: Ads Log
+Timestamp,CampaignName,AdName,MediaType,CampaignID,AdSetID,CreativeID,AdID,Attribution,Status
