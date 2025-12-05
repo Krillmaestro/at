@@ -275,18 +275,34 @@ class SkiingVideoAnalyzer:
         # Clear times button
         self.clear_btn = ttk.Button(
             times_buttons_frame,
-            text="🗑 Clear Times",
+            text="Clear Times",
             command=self._clear_times
         )
-        self.clear_btn.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.clear_btn.pack(fill=tk.X, pady=(2, 2))
 
-        # Export button
+        # Copy to clipboard button (for Google Sheets)
+        self.copy_btn = ttk.Button(
+            times_buttons_frame,
+            text="Copy for Google Sheets",
+            command=self._copy_to_clipboard
+        )
+        self.copy_btn.pack(fill=tk.X, pady=(2, 2))
+
+        # Export to CSV button
+        self.csv_btn = ttk.Button(
+            times_buttons_frame,
+            text="Save as CSV",
+            command=self._export_to_csv
+        )
+        self.csv_btn.pack(fill=tk.X, pady=(2, 2))
+
+        # Export to Excel button
         self.export_btn = ttk.Button(
             times_buttons_frame,
-            text="📊 Export to Excel",
+            text="Save as Excel",
             command=self._export_to_excel
         )
-        self.export_btn.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=(5, 0))
+        self.export_btn.pack(fill=tk.X, pady=(2, 2))
 
         # Statistics label
         self.stats_label = ttk.Label(
@@ -616,6 +632,83 @@ class SkiingVideoAnalyzer:
             self.times_tree.delete(item)
 
         self._update_statistics()
+
+    def _copy_to_clipboard(self):
+        """Copy gate times to clipboard for pasting into Google Sheets."""
+        if not self.gate_times:
+            messagebox.showwarning("No Data", "No gate times to copy.")
+            return
+
+        # Build tab-separated text (works with Google Sheets and Excel)
+        lines = ["Gate Number\tVideo Timestamp (s)\tSplit Time (s)"]
+
+        for gate_time in self.gate_times:
+            if gate_time.gate_number == 1:
+                split_display = "START"
+            else:
+                split_display = f"{gate_time.split_time:.2f}"
+
+            lines.append(f"{gate_time.gate_number}\t{gate_time.video_timestamp:.2f}\t{split_display}")
+
+        # Copy to clipboard
+        text = "\n".join(lines)
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        self.root.update()  # Required for clipboard to persist
+
+        messagebox.showinfo(
+            "Copied!",
+            "Gate times copied to clipboard!\n\n"
+            "Now go to Google Sheets and press Ctrl+V (or Cmd+V on Mac) to paste."
+        )
+
+    def _export_to_csv(self):
+        """Export gate times to a CSV file."""
+        if not self.gate_times:
+            messagebox.showwarning("No Data", "No gate times to export.")
+            return
+
+        # Generate default filename
+        if self.video_path:
+            video_name = os.path.splitext(os.path.basename(self.video_path))[0]
+        else:
+            video_name = "skiing_analysis"
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_filename = f"{video_name}_gate_times_{timestamp}.csv"
+
+        # Ask for save location
+        file_path = filedialog.asksaveasfilename(
+            title="Save CSV File",
+            defaultextension=".csv",
+            initialfile=default_filename,
+            filetypes=[("CSV Files", "*.csv")]
+        )
+
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                # Write header
+                f.write("Gate Number,Video Timestamp (s),Split Time (s)\n")
+
+                # Write data
+                for gate_time in self.gate_times:
+                    if gate_time.gate_number == 1:
+                        split_display = "START"
+                    else:
+                        split_display = f"{gate_time.split_time:.2f}"
+
+                    f.write(f"{gate_time.gate_number},{gate_time.video_timestamp:.2f},{split_display}\n")
+
+            messagebox.showinfo(
+                "Export Successful",
+                f"Gate times saved to:\n{file_path}\n\n"
+                "You can open this file in Google Sheets or Excel."
+            )
+        except Exception as e:
+            messagebox.showerror("Export Failed", f"Error saving file:\n{str(e)}")
 
     def _export_to_excel(self):
         """Export gate times to an Excel file."""
