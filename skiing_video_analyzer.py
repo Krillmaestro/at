@@ -74,7 +74,7 @@ class SkiingVideoAnalyzer:
         self.root = root
         self.root.title("Alpine Skiing Video Analyzer - Gate-to-Gate Timing")
         self.root.geometry("1200x800")
-        self.root.minsize(900, 600)
+        self.root.minsize(1000, 600)
 
         # Video state variables
         self.video_capture: Optional[cv2.VideoCapture] = None
@@ -120,9 +120,10 @@ class SkiingVideoAnalyzer:
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Right side: Split times panel
-        right_frame = ttk.Frame(main_frame, width=300)
+        right_frame = ttk.Frame(main_frame, width=350)
         right_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(10, 0))
         right_frame.pack_propagate(False)
+        right_frame.configure(width=350)  # Force minimum width
 
         # --- Video Display Area ---
         video_frame = ttk.LabelFrame(left_frame, text="Video Player", padding="5")
@@ -253,9 +254,9 @@ class SkiingVideoAnalyzer:
         self.times_tree.heading('timestamp', text='Video Time (s)')
         self.times_tree.heading('split', text='Split (s)')
 
-        self.times_tree.column('gate', width=60, anchor=tk.CENTER)
-        self.times_tree.column('timestamp', width=100, anchor=tk.CENTER)
-        self.times_tree.column('split', width=100, anchor=tk.CENTER)
+        self.times_tree.column('gate', width=70, anchor=tk.CENTER, minwidth=70)
+        self.times_tree.column('timestamp', width=120, anchor=tk.CENTER, minwidth=100)
+        self.times_tree.column('split', width=100, anchor=tk.CENTER, minwidth=80)
 
         # Scrollbar for treeview
         times_scroll = ttk.Scrollbar(
