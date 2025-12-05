@@ -393,13 +393,19 @@ class SkiingVideoAnalyzer:
             "Press ENTER to record gate times."
         )
 
-    def _display_frame(self):
-        """Read and display the current video frame."""
+    def _display_frame(self, seek=True):
+        """Read and display the current video frame.
+
+        Args:
+            seek: If True, seek to frame position first. Set to False for
+                  sequential playback (much faster).
+        """
         if self.video_capture is None:
             return
 
-        # Set the frame position
-        self.video_capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame_number)
+        # Only seek if needed (seeking is slow, sequential read is fast)
+        if seek:
+            self.video_capture.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame_number)
 
         ret, frame = self.video_capture.read()
         if not ret:
@@ -489,9 +495,11 @@ class SkiingVideoAnalyzer:
         if self.current_frame_number >= self.total_frames:
             # Loop back to start
             self.current_frame_number = 0
-
-        # Display the frame
-        self._display_frame()
+            # Need to seek when looping
+            self._display_frame(seek=True)
+        else:
+            # Sequential read is much faster (no seeking)
+            self._display_frame(seek=False)
 
         # Calculate delay based on FPS and playback speed
         # delay = (1000 ms / fps) / speed_factor
