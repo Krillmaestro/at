@@ -55,9 +55,9 @@ A window will open! 🎉
 ### Recording Gate Times
 1. Click **"Play"** to start the video
 2. Watch the skier
-3. When the skier passes a gate, press **SPACEBAR** on your keyboard
+3. When the skier passes a gate, press **ENTER** on your keyboard
 4. The time appears in the list on the right side
-5. Keep pressing SPACEBAR for each gate
+5. Keep pressing ENTER for each gate
 
 ### Changing Speed
 - Click on **0.25x** to make video very slow (best for accuracy)
@@ -97,6 +97,6 @@ A window will open! 🎉
 1. Install Python (if needed)
 2. Run: `pip install opencv-python pillow openpyxl`
 3. Run: `python skiing_video_analyzer.py`
-4. Load video → Play → Press SPACEBAR at each gate → Export to Excel
+4. Load video → Play → Press ENTER at each gate → Export to Excel
 
 That's it! 🎿

@@ -13,7 +13,7 @@ Usage:
 Controls:
     - Click "Load Video" to open a video file (mp4, mov, avi)
     - Use speed selector to adjust playback speed
-    - Press SPACEBAR to record gate times while video is playing
+    - Press ENTER to record gate times while video is playing
     - Click "Export to Excel" to save timing data
 
 Author: Alpine Skiing Analysis Tool
@@ -222,7 +222,7 @@ class SkiingVideoAnalyzer:
         instruction_frame = ttk.Frame(left_frame)
         instruction_frame.pack(fill=tk.X, pady=(10, 0))
 
-        instruction_text = "Press SPACEBAR while video is playing to record gate times"
+        instruction_text = "Press ENTER while video is playing to record gate times"
         instruction_label = ttk.Label(
             instruction_frame,
             text=f"⌨ {instruction_text}",
@@ -313,8 +313,8 @@ class SkiingVideoAnalyzer:
 
     def _on_key_press(self, event):
         """Handle key press events for better Mac compatibility."""
-        # Check for spacebar (keysym 'space' or char ' ')
-        if event.keysym == 'space' or event.char == ' ':
+        # Check for Enter key to record gate time
+        if event.keysym in ('Return', 'KP_Enter') or event.char == '\r':
             self._record_gate_time(event)
         elif event.keysym == 'Left':
             self._seek_relative(-1)
@@ -373,7 +373,7 @@ class SkiingVideoAnalyzer:
             f"Loaded: {video_name}\n"
             f"Duration: {self._format_time(self.total_frames / self.fps)}\n"
             f"FPS: {self.fps:.2f}\n\n"
-            "Press SPACEBAR to record gate times."
+            "Press ENTER to record gate times."
         )
 
     def _display_frame(self):
