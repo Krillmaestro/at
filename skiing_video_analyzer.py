@@ -2,10 +2,11 @@
 """
 Alpine Skiing Video Analyzer - Gate-to-Gate Timing Tool
 
-A desktop application for manually measuring gate-to-gate times in alpine skiing videos.
+A desktop application for measuring gate-to-gate times in alpine skiing videos.
+Uses YOLO AI to track the skier and detect gate touches.
 
 Installation:
-    pip install opencv-python pillow openpyxl
+    pip install opencv-python pillow openpyxl ultralytics
 
 Usage:
     python skiing_video_analyzer.py
@@ -14,6 +15,7 @@ Controls:
     - Click "Load Video" to open a video file (mp4, mov, avi)
     - Use speed selector to adjust playback speed
     - Press ENTER to record gate times while video is playing
+    - Enable Auto-Detection to use YOLO AI tracking
     - Click "Export to Excel" to save timing data
 
 Author: Alpine Skiing Analysis Tool
@@ -28,6 +30,14 @@ from PIL import Image, ImageTk
 from dataclasses import dataclass
 from datetime import datetime
 import os
+
+# Try to import YOLO
+YOLO_AVAILABLE = False
+try:
+    from ultralytics import YOLO
+    YOLO_AVAILABLE = True
+except ImportError:
+    pass
 
 
 # =============================================================================
@@ -95,17 +105,29 @@ class SkiingVideoAnalyzer:
         self.auto_detect_enabled: bool = False
         self.previous_frame: Optional[np.ndarray] = None
         self.last_detection_frame: int = 0
-        self.detection_cooldown_frames: int = 15  # Minimum frames between detections
+        self.detection_cooldown_frames: int = 20  # Minimum frames between detections
         self.detection_sensitivity: int = 50  # Sensitivity slider value (1-100)
+
+        # YOLO model for skier detection
+        self.yolo_model = None
+        self.yolo_available = YOLO_AVAILABLE
+        if YOLO_AVAILABLE:
+            try:
+                # Load YOLOv8 nano model (smallest, fastest)
+                self.yolo_model = YOLO('yolov8n.pt')
+                print("YOLO model loaded successfully!")
+            except Exception as e:
+                print(f"Could not load YOLO model: {e}")
+                self.yolo_available = False
 
         # HSV color ranges for red and blue gates
         # Red has two ranges (wraps around in HSV)
-        self.red_lower1 = np.array([0, 100, 100])
+        self.red_lower1 = np.array([0, 70, 50])
         self.red_upper1 = np.array([10, 255, 255])
-        self.red_lower2 = np.array([160, 100, 100])
+        self.red_lower2 = np.array([160, 70, 50])
         self.red_upper2 = np.array([180, 255, 255])
         # Blue range
-        self.blue_lower = np.array([100, 100, 100])
+        self.blue_lower = np.array([90, 50, 50])
         self.blue_upper = np.array([130, 255, 255])
 
         # Build the GUI
@@ -250,21 +272,23 @@ class SkiingVideoAnalyzer:
         instruction_label.pack(side=tk.LEFT)
 
         # --- Auto Detection Controls ---
-        auto_frame = ttk.LabelFrame(left_frame, text="Auto Gate Detection", padding="5")
+        yolo_status = "YOLO AI" if self.yolo_available else "Basic"
+        auto_frame = ttk.LabelFrame(left_frame, text=f"Auto Gate Detection ({yolo_status})", padding="5")
         auto_frame.pack(fill=tk.X, pady=(10, 0))
 
         # Toggle button for auto-detection
         self.auto_detect_var = tk.BooleanVar(value=False)
+        detect_text = "Enable YOLO Skier Tracking" if self.yolo_available else "Enable Auto-Detection"
         self.auto_detect_btn = ttk.Checkbutton(
             auto_frame,
-            text="Enable Auto-Detection (Red/Blue Gates)",
+            text=detect_text,
             variable=self.auto_detect_var,
             command=self._toggle_auto_detect
         )
         self.auto_detect_btn.pack(side=tk.LEFT, padx=(0, 20))
 
-        # Sensitivity slider
-        sens_label = ttk.Label(auto_frame, text="Sensitivity:")
+        # Sensitivity slider (controls how close skier must be to gate)
+        sens_label = ttk.Label(auto_frame, text="Detection Range:")
         sens_label.pack(side=tk.LEFT, padx=(10, 5))
 
         self.sensitivity_var = tk.IntVar(value=50)
@@ -285,8 +309,8 @@ class SkiingVideoAnalyzer:
         # Status indicator
         self.auto_status_label = ttk.Label(
             auto_frame,
-            text="",
-            foreground='gray'
+            text="YOLO Ready" if self.yolo_available else "Install: pip3 install ultralytics",
+            foreground='green' if self.yolo_available else 'orange'
         )
         self.auto_status_label.pack(side=tk.RIGHT, padx=(20, 0))
 
@@ -601,27 +625,67 @@ class SkiingVideoAnalyzer:
 
     def _detect_gate_in_frame(self, frame: np.ndarray) -> bool:
         """
-        Detect if a gate (red or blue pole) is bending using Optical Flow.
+        Detect if the skier is touching a gate using YOLO + color detection.
 
-        Uses Optical Flow to track movement in red/blue colored regions.
-        Detects significant lateral movement that indicates pole bending.
+        Strategy:
+        1. Use YOLO to find the skier (person) in the frame
+        2. Look for red/blue gate poles NEAR the skier
+        3. Trigger only when skier and pole are close together
 
         Args:
             frame: Current video frame in BGR format
 
         Returns:
-            True if gate bending detected, False otherwise
+            True if skier touching gate detected, False otherwise
         """
         # Check cooldown - don't detect too frequently
         frames_since_last = self.current_frame_number - self.last_detection_frame
         if frames_since_last < self.detection_cooldown_frames:
             return False
 
-        # Convert to grayscale for Optical Flow
-        current_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # If YOLO is not available, fall back to basic detection
+        if not self.yolo_available or self.yolo_model is None:
+            return self._detect_gate_basic(frame)
+
+        # Run YOLO detection to find skier
+        try:
+            results = self.yolo_model(frame, verbose=False, conf=0.3)
+        except Exception:
+            return False
+
+        # Find person detections (class 0 = person in COCO dataset)
+        skier_boxes = []
+        for result in results:
+            if result.boxes is not None:
+                for box in result.boxes:
+                    if int(box.cls[0]) == 0:  # Person class
+                        x1, y1, x2, y2 = map(int, box.xyxy[0])
+                        skier_boxes.append((x1, y1, x2, y2))
+
+        # If no skier found, skip
+        if not skier_boxes:
+            return False
+
+        # Use the largest detected person (most likely the main skier)
+        skier_box = max(skier_boxes, key=lambda b: (b[2]-b[0]) * (b[3]-b[1]))
+        sx1, sy1, sx2, sy2 = skier_box
+
+        # Expand the skier box based on sensitivity (detection range)
+        # Higher sensitivity = larger detection area around skier
+        expand = int((self.detection_sensitivity / 100) * 100) + 20
+        sx1_exp = max(0, sx1 - expand)
+        sy1_exp = max(0, sy1 - expand)
+        sx2_exp = min(frame.shape[1], sx2 + expand)
+        sy2_exp = min(frame.shape[0], sy2 + expand)
+
+        # Extract the region around the skier
+        skier_region = frame[sy1_exp:sy2_exp, sx1_exp:sx2_exp]
+
+        if skier_region.size == 0:
+            return False
 
         # Convert to HSV for color detection
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        hsv = cv2.cvtColor(skier_region, cv2.COLOR_BGR2HSV)
 
         # Create masks for red color (two ranges because red wraps in HSV)
         red_mask1 = cv2.inRange(hsv, self.red_lower1, self.red_upper1)
@@ -634,85 +698,80 @@ class SkiingVideoAnalyzer:
         # Combine red and blue masks
         pole_mask = cv2.bitwise_or(red_mask, blue_mask)
 
-        # Apply morphological operations to clean up the mask
-        kernel = np.ones((5, 5), np.uint8)
+        # Clean up the mask
+        kernel = np.ones((3, 3), np.uint8)
         pole_mask = cv2.morphologyEx(pole_mask, cv2.MORPH_OPEN, kernel)
         pole_mask = cv2.morphologyEx(pole_mask, cv2.MORPH_CLOSE, kernel)
-        pole_mask = cv2.dilate(pole_mask, kernel, iterations=2)
 
-        # Check if we have enough pole pixels
+        # Count pole pixels in the skier's region
         pole_pixels = cv2.countNonZero(pole_mask)
-        if pole_pixels < 200:
-            self.previous_frame = current_gray.copy()
-            return False
+        total_pixels = skier_region.shape[0] * skier_region.shape[1]
 
-        # If no previous frame, store and return
-        if self.previous_frame is None:
-            self.previous_frame = current_gray.copy()
-            return False
+        # Calculate what percentage of the region is gate pole
+        if total_pixels > 0:
+            pole_ratio = pole_pixels / total_pixels
 
-        # Calculate Optical Flow using Farneback method
-        # This gives us motion vectors for each pixel
-        flow = cv2.calcOpticalFlowFarneback(
-            self.previous_frame,
-            current_gray,
-            None,
-            pyr_scale=0.5,
-            levels=3,
-            winsize=15,
-            iterations=3,
-            poly_n=5,
-            poly_sigma=1.2,
-            flags=0
-        )
+            # Minimum pole pixels required (adjustable by sensitivity)
+            min_pixels = max(50, 200 - self.detection_sensitivity * 1.5)
 
-        # Extract horizontal (x) and vertical (y) flow components
-        flow_x = flow[..., 0]  # Horizontal movement
-        flow_y = flow[..., 1]  # Vertical movement
+            # Check if there's a significant amount of pole color near the skier
+            # This indicates the skier is touching/near a gate
+            if pole_pixels > min_pixels and pole_ratio > 0.01:
+                # Additional check: is this a new pole or the same one?
+                # Use frame difference to see if pole is moving (being hit)
+                if self.previous_frame is not None:
+                    prev_region = self.previous_frame[sy1_exp:sy2_exp, sx1_exp:sx2_exp]
+                    if prev_region.shape == skier_region.shape[:2]:
+                        current_gray = cv2.cvtColor(skier_region, cv2.COLOR_BGR2GRAY)
+                        diff = cv2.absdiff(prev_region, current_gray)
+                        motion = np.mean(diff)
 
-        # Calculate magnitude of movement
-        magnitude = np.sqrt(flow_x**2 + flow_y**2)
-
-        # Apply pole mask - only look at movement in pole regions
-        pole_flow_x = np.where(pole_mask > 0, flow_x, 0)
-        pole_flow_y = np.where(pole_mask > 0, flow_y, 0)
-        pole_magnitude = np.where(pole_mask > 0, magnitude, 0)
-
-        # Calculate average movement in pole regions
-        if pole_pixels > 0:
-            avg_pole_magnitude = np.sum(pole_magnitude) / pole_pixels
-            avg_pole_x = np.sum(np.abs(pole_flow_x)) / pole_pixels
-            avg_pole_y = np.sum(np.abs(pole_flow_y)) / pole_pixels
-
-            # Calculate global camera movement (average of whole frame)
-            total_pixels = current_gray.shape[0] * current_gray.shape[1]
-            avg_global_magnitude = np.sum(magnitude) / total_pixels
-
-            # Pole bending creates EXTRA movement compared to camera motion
-            # When pole bends, it moves MORE than the background
-            relative_movement = avg_pole_magnitude - avg_global_magnitude
-
-            # Sensitivity affects the threshold (higher = more sensitive)
-            threshold = 3.0 - (self.detection_sensitivity * 0.025)
-            threshold = max(0.5, min(threshold, 3.0))
-
-            # Also check for significant horizontal movement (pole bending sideways)
-            horizontal_movement = avg_pole_x
-
-            # Store current frame for next comparison
-            self.previous_frame = current_gray.copy()
-
-            # Detection criteria:
-            # 1. Pole is moving more than the background (relative_movement)
-            # 2. There's significant horizontal movement (pole bending)
-            # 3. Overall pole movement is significant
-            if (relative_movement > threshold or
-                horizontal_movement > threshold * 1.5) and avg_pole_magnitude > 2.0:
-                self.last_detection_frame = self.current_frame_number
-                return True
+                        # Only trigger if there's motion (pole is bending)
+                        if motion > 5:
+                            self.last_detection_frame = self.current_frame_number
+                            self.previous_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                            return True
+                else:
+                    self.previous_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # Store current frame for next comparison
-        self.previous_frame = current_gray.copy()
+        self.previous_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        return False
+
+    def _detect_gate_basic(self, frame: np.ndarray) -> bool:
+        """
+        Basic gate detection without YOLO (fallback method).
+        Uses color detection only.
+        """
+        # Convert to HSV for color detection
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+        # Create masks for red and blue
+        red_mask1 = cv2.inRange(hsv, self.red_lower1, self.red_upper1)
+        red_mask2 = cv2.inRange(hsv, self.red_lower2, self.red_upper2)
+        red_mask = cv2.bitwise_or(red_mask1, red_mask2)
+        blue_mask = cv2.inRange(hsv, self.blue_lower, self.blue_upper)
+        pole_mask = cv2.bitwise_or(red_mask, blue_mask)
+
+        # Check for significant pole presence
+        pole_pixels = cv2.countNonZero(pole_mask)
+
+        if self.previous_frame is not None:
+            current_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            diff = cv2.absdiff(self.previous_frame, current_gray)
+
+            # Apply pole mask to diff
+            masked_diff = cv2.bitwise_and(diff, diff, mask=pole_mask)
+            motion = np.mean(masked_diff)
+
+            self.previous_frame = current_gray
+
+            if motion > 10 and pole_pixels > 500:
+                self.last_detection_frame = self.current_frame_number
+                return True
+        else:
+            self.previous_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
         return False
 
     def _on_progress_change(self, value):
