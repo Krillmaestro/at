@@ -23,6 +23,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from typing import Optional
 import cv2
+import numpy as np
 from PIL import Image, ImageTk
 from dataclasses import dataclass
 from datetime import datetime
@@ -89,6 +90,23 @@ class SkiingVideoAnalyzer:
         # Timing data
         self.gate_times: list[GateTime] = []
         self.last_timestamp: Optional[float] = None
+
+        # Auto-detection settings
+        self.auto_detect_enabled: bool = False
+        self.previous_frame: Optional[np.ndarray] = None
+        self.last_detection_frame: int = 0
+        self.detection_cooldown_frames: int = 15  # Minimum frames between detections
+        self.detection_sensitivity: int = 50  # Sensitivity slider value (1-100)
+
+        # HSV color ranges for red and blue gates
+        # Red has two ranges (wraps around in HSV)
+        self.red_lower1 = np.array([0, 100, 100])
+        self.red_upper1 = np.array([10, 255, 255])
+        self.red_lower2 = np.array([160, 100, 100])
+        self.red_upper2 = np.array([180, 255, 255])
+        # Blue range
+        self.blue_lower = np.array([100, 100, 100])
+        self.blue_upper = np.array([130, 255, 255])
 
         # Build the GUI
         self._setup_styles()
@@ -230,6 +248,47 @@ class SkiingVideoAnalyzer:
             foreground='#0066cc'
         )
         instruction_label.pack(side=tk.LEFT)
+
+        # --- Auto Detection Controls ---
+        auto_frame = ttk.LabelFrame(left_frame, text="Auto Gate Detection", padding="5")
+        auto_frame.pack(fill=tk.X, pady=(10, 0))
+
+        # Toggle button for auto-detection
+        self.auto_detect_var = tk.BooleanVar(value=False)
+        self.auto_detect_btn = ttk.Checkbutton(
+            auto_frame,
+            text="Enable Auto-Detection (Red/Blue Gates)",
+            variable=self.auto_detect_var,
+            command=self._toggle_auto_detect
+        )
+        self.auto_detect_btn.pack(side=tk.LEFT, padx=(0, 20))
+
+        # Sensitivity slider
+        sens_label = ttk.Label(auto_frame, text="Sensitivity:")
+        sens_label.pack(side=tk.LEFT, padx=(10, 5))
+
+        self.sensitivity_var = tk.IntVar(value=50)
+        self.sensitivity_slider = ttk.Scale(
+            auto_frame,
+            from_=10,
+            to=100,
+            orient=tk.HORIZONTAL,
+            variable=self.sensitivity_var,
+            length=150,
+            command=self._on_sensitivity_change
+        )
+        self.sensitivity_slider.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.sens_value_label = ttk.Label(auto_frame, text="50", width=3)
+        self.sens_value_label.pack(side=tk.LEFT)
+
+        # Status indicator
+        self.auto_status_label = ttk.Label(
+            auto_frame,
+            text="",
+            foreground='gray'
+        )
+        self.auto_status_label.pack(side=tk.RIGHT, padx=(20, 0))
 
         # --- Split Times Panel (Right Side) ---
         times_header = ttk.Label(
@@ -414,6 +473,12 @@ class SkiingVideoAnalyzer:
         if not ret:
             return
 
+        # Auto-detect gate motion if enabled
+        if self.auto_detect_enabled and self.is_playing:
+            if self._detect_gate_in_frame(frame):
+                # Gate detected! Record the time
+                self._record_gate_time(auto_detected=True)
+
         # Convert BGR to RGB
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -520,6 +585,98 @@ class SkiingVideoAnalyzer:
         speed_text = self.speed_var.get()
         self.playback_speed = self.SPEED_OPTIONS.get(speed_text, 1.0)
 
+    def _toggle_auto_detect(self):
+        """Toggle automatic gate detection on/off."""
+        self.auto_detect_enabled = self.auto_detect_var.get()
+        if self.auto_detect_enabled:
+            self.auto_status_label.configure(text="AUTO ON", foreground='green')
+            self.previous_frame = None  # Reset previous frame
+        else:
+            self.auto_status_label.configure(text="", foreground='gray')
+
+    def _on_sensitivity_change(self, value):
+        """Handle sensitivity slider change."""
+        self.detection_sensitivity = int(float(value))
+        self.sens_value_label.configure(text=str(self.detection_sensitivity))
+
+    def _detect_gate_in_frame(self, frame: np.ndarray) -> bool:
+        """
+        Detect if a gate (red or blue pole) has significant motion/change.
+
+        Uses HSV color detection to find red and blue regions, then compares
+        with the previous frame to detect movement (pole bending).
+
+        Args:
+            frame: Current video frame in BGR format
+
+        Returns:
+            True if gate motion detected, False otherwise
+        """
+        # Check cooldown - don't detect too frequently
+        frames_since_last = self.current_frame_number - self.last_detection_frame
+        if frames_since_last < self.detection_cooldown_frames:
+            return False
+
+        # Convert to HSV for color detection
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+        # Create masks for red color (two ranges because red wraps in HSV)
+        red_mask1 = cv2.inRange(hsv, self.red_lower1, self.red_upper1)
+        red_mask2 = cv2.inRange(hsv, self.red_lower2, self.red_upper2)
+        red_mask = cv2.bitwise_or(red_mask1, red_mask2)
+
+        # Create mask for blue color
+        blue_mask = cv2.inRange(hsv, self.blue_lower, self.blue_upper)
+
+        # Combine red and blue masks
+        combined_mask = cv2.bitwise_or(red_mask, blue_mask)
+
+        # Apply some morphological operations to reduce noise
+        kernel = np.ones((5, 5), np.uint8)
+        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
+        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
+
+        # Extract only the colored regions from the frame
+        colored_regions = cv2.bitwise_and(frame, frame, mask=combined_mask)
+
+        # Convert to grayscale for comparison
+        current_gray = cv2.cvtColor(colored_regions, cv2.COLOR_BGR2GRAY)
+
+        # If no previous frame, store and return
+        if self.previous_frame is None:
+            self.previous_frame = current_gray.copy()
+            return False
+
+        # Calculate absolute difference between frames
+        frame_diff = cv2.absdiff(self.previous_frame, current_gray)
+
+        # Threshold the difference
+        threshold = 255 - (self.detection_sensitivity * 2)  # Higher sensitivity = lower threshold
+        threshold = max(10, min(threshold, 200))
+        _, thresh = cv2.threshold(frame_diff, threshold, 255, cv2.THRESH_BINARY)
+
+        # Count non-zero pixels (amount of change in colored regions)
+        change_pixels = cv2.countNonZero(thresh)
+        total_colored_pixels = cv2.countNonZero(combined_mask)
+
+        # Store current frame for next comparison
+        self.previous_frame = current_gray.copy()
+
+        # Calculate change ratio
+        if total_colored_pixels > 100:  # Only if we have enough colored pixels
+            change_ratio = change_pixels / total_colored_pixels
+
+            # Detect if significant change (gate bending)
+            # Sensitivity affects the required change ratio
+            required_ratio = 0.15 - (self.detection_sensitivity * 0.001)
+            required_ratio = max(0.05, min(required_ratio, 0.20))
+
+            if change_ratio > required_ratio and change_pixels > 500:
+                self.last_detection_frame = self.current_frame_number
+                return True
+
+        return False
+
     def _on_progress_change(self, value):
         """Handle progress bar scrubbing."""
         if self.video_capture is None:
@@ -552,14 +709,16 @@ class SkiingVideoAnalyzer:
         if self.video_capture is not None and not self.is_playing:
             self._display_frame()
 
-    def _record_gate_time(self, event=None):
-        """Record a gate time when spacebar is pressed."""
+    def _record_gate_time(self, event=None, auto_detected=False):
+        """Record a gate time when ENTER is pressed or auto-detected."""
         if self.video_capture is None:
-            messagebox.showwarning("No Video", "Please load a video first.")
+            if not auto_detected:
+                messagebox.showwarning("No Video", "Please load a video first.")
             return
 
         if not self.is_playing:
-            messagebox.showinfo("Video Paused", "Video must be playing to record gate times.")
+            if not auto_detected:
+                messagebox.showinfo("Video Paused", "Video must be playing to record gate times.")
             return
 
         # Calculate current video timestamp
