@@ -105,8 +105,14 @@ class SkiingVideoAnalyzer:
         self.auto_detect_enabled: bool = False
         self.previous_frame: Optional[np.ndarray] = None
         self.last_detection_frame: int = 0
-        self.detection_cooldown_frames: int = 20  # Minimum frames between detections
-        self.detection_sensitivity: int = 50  # Sensitivity slider value (1-100)
+        self.detection_cooldown_frames: int = 30  # Longer cooldown between gates
+        self.detection_sensitivity: int = 50
+
+        # Gate tracking state
+        self.gate_was_in_zone: bool = False  # Was a gate in the skier's zone last frame?
+        self.frames_without_gate: int = 0  # How many frames since we saw a gate?
+        self.min_frames_between_gates: int = 20  # Minimum frames between gate detections
+        self.gate_left_zone: bool = True  # Has the gate left the zone since last detection?
 
         # YOLO model for skier detection
         self.yolo_model = None
@@ -614,7 +620,12 @@ class SkiingVideoAnalyzer:
         self.auto_detect_enabled = self.auto_detect_var.get()
         if self.auto_detect_enabled:
             self.auto_status_label.configure(text="AUTO ON", foreground='green')
-            self.previous_frame = None  # Reset previous frame
+            # Reset ALL gate tracking state
+            self.previous_frame = None
+            self.gate_was_in_zone = False
+            self.frames_without_gate = 0
+            self.gate_left_zone = True
+            self.last_detection_frame = 0
         else:
             self.auto_status_label.configure(text="", foreground='gray')
 
@@ -625,24 +636,19 @@ class SkiingVideoAnalyzer:
 
     def _detect_gate_in_frame(self, frame: np.ndarray) -> bool:
         """
-        Detect if the skier is touching a gate using YOLO + color detection.
+        Detect if the skier is touching a NEW gate using YOLO + color detection.
 
-        Strategy:
-        1. Use YOLO to find the skier (person) in the frame
-        2. Look for red/blue gate poles NEAR the skier
-        3. Trigger only when skier and pole are close together
+        IMPORTANT LOGIC:
+        - Each gate can only be counted ONCE
+        - After a gate is detected, it must LEAVE the skier's zone
+        - Only when a NEW gate ENTERS the zone do we trigger again
 
         Args:
             frame: Current video frame in BGR format
 
         Returns:
-            True if skier touching gate detected, False otherwise
+            True if skier touching a NEW gate, False otherwise
         """
-        # Check cooldown - don't detect too frequently
-        frames_since_last = self.current_frame_number - self.last_detection_frame
-        if frames_since_last < self.detection_cooldown_frames:
-            return False
-
         # If YOLO is not available, fall back to basic detection
         if not self.yolo_available or self.yolo_model is None:
             return self._detect_gate_basic(frame)
@@ -662,17 +668,18 @@ class SkiingVideoAnalyzer:
                         x1, y1, x2, y2 = map(int, box.xyxy[0])
                         skier_boxes.append((x1, y1, x2, y2))
 
-        # If no skier found, skip
+        # If no skier found, reset state and skip
         if not skier_boxes:
+            self.frames_without_gate += 1
             return False
 
         # Use the largest detected person (most likely the main skier)
         skier_box = max(skier_boxes, key=lambda b: (b[2]-b[0]) * (b[3]-b[1]))
         sx1, sy1, sx2, sy2 = skier_box
 
-        # Expand the skier box based on sensitivity (detection range)
-        # Higher sensitivity = larger detection area around skier
-        expand = int((self.detection_sensitivity / 100) * 100) + 20
+        # Smaller detection zone - only immediate area around skier
+        # Sensitivity controls how close the gate must be
+        expand = int((self.detection_sensitivity / 100) * 50) + 10
         sx1_exp = max(0, sx1 - expand)
         sy1_exp = max(0, sy1 - expand)
         sx2_exp = min(frame.shape[1], sx2 + expand)
@@ -705,38 +712,44 @@ class SkiingVideoAnalyzer:
 
         # Count pole pixels in the skier's region
         pole_pixels = cv2.countNonZero(pole_mask)
-        total_pixels = skier_region.shape[0] * skier_region.shape[1]
 
-        # Calculate what percentage of the region is gate pole
-        if total_pixels > 0:
-            pole_ratio = pole_pixels / total_pixels
+        # Minimum pixels to consider a gate present
+        min_pixels = max(100, 300 - self.detection_sensitivity * 2)
 
-            # Minimum pole pixels required (adjustable by sensitivity)
-            min_pixels = max(50, 200 - self.detection_sensitivity * 1.5)
+        # Is there a gate in the zone RIGHT NOW?
+        gate_in_zone_now = pole_pixels > min_pixels
 
-            # Check if there's a significant amount of pole color near the skier
-            # This indicates the skier is touching/near a gate
-            if pole_pixels > min_pixels and pole_ratio > 0.01:
-                # Additional check: is this a new pole or the same one?
-                # Use frame difference to see if pole is moving (being hit)
-                if self.previous_frame is not None:
-                    prev_region = self.previous_frame[sy1_exp:sy2_exp, sx1_exp:sx2_exp]
-                    if prev_region.shape == skier_region.shape[:2]:
-                        current_gray = cv2.cvtColor(skier_region, cv2.COLOR_BGR2GRAY)
-                        diff = cv2.absdiff(prev_region, current_gray)
-                        motion = np.mean(diff)
+        # STATE MACHINE LOGIC:
+        # 1. If gate WAS in zone and now is NOT -> gate has left
+        # 2. If gate was NOT in zone and now IS -> NEW gate entered!
+        # 3. Only trigger when a NEW gate enters (transition from False to True)
 
-                        # Only trigger if there's motion (pole is bending)
-                        if motion > 5:
-                            self.last_detection_frame = self.current_frame_number
-                            self.previous_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                            return True
-                else:
-                    self.previous_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        should_trigger = False
 
-        # Store current frame for next comparison
-        self.previous_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        return False
+        if gate_in_zone_now:
+            # Gate is currently in the zone
+            self.frames_without_gate = 0
+
+            if not self.gate_was_in_zone and self.gate_left_zone:
+                # NEW gate just entered the zone!
+                # Check minimum time since last detection
+                frames_since_last = self.current_frame_number - self.last_detection_frame
+                if frames_since_last >= self.min_frames_between_gates:
+                    should_trigger = True
+                    self.last_detection_frame = self.current_frame_number
+                    self.gate_left_zone = False  # Gate hasn't left yet
+
+            self.gate_was_in_zone = True
+        else:
+            # No gate in zone
+            self.frames_without_gate += 1
+
+            # After enough frames without a gate, mark as "gate left"
+            if self.frames_without_gate > 10:
+                self.gate_left_zone = True
+                self.gate_was_in_zone = False
+
+        return should_trigger
 
     def _detect_gate_basic(self, frame: np.ndarray) -> bool:
         """
