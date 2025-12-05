@@ -299,12 +299,10 @@ class SkiingVideoAnalyzer:
     def _bind_events(self):
         """Bind keyboard and window events."""
         # Spacebar for gate timing - bind to root for global capture
-        self.root.bind('<space>', self._record_gate_time)
-        self.root.bind('<Space>', self._record_gate_time)
+        # Use KeyPress event for better Mac compatibility
+        self.root.bind('<KeyPress>', self._on_key_press)
 
-        # Additional playback controls
-        self.root.bind('<Left>', lambda e: self._seek_relative(-1))
-        self.root.bind('<Right>', lambda e: self._seek_relative(1))
+        # Additional playback controls - use KeyPress handler above for arrows too
         self.root.bind('<p>', lambda e: self._toggle_playback())
 
         # Window resize event
@@ -312,6 +310,16 @@ class SkiingVideoAnalyzer:
 
         # Cleanup on close
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+    def _on_key_press(self, event):
+        """Handle key press events for better Mac compatibility."""
+        # Check for spacebar (keysym 'space' or char ' ')
+        if event.keysym == 'space' or event.char == ' ':
+            self._record_gate_time(event)
+        elif event.keysym == 'Left':
+            self._seek_relative(-1)
+        elif event.keysym == 'Right':
+            self._seek_relative(1)
 
     def _load_video(self):
         """Open a file dialog and load the selected video."""
