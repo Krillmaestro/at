@@ -601,21 +601,24 @@ class SkiingVideoAnalyzer:
 
     def _detect_gate_in_frame(self, frame: np.ndarray) -> bool:
         """
-        Detect if a gate (red or blue pole) has significant motion/change.
+        Detect if a gate (red or blue pole) is bending using Optical Flow.
 
-        Uses HSV color detection to find red and blue regions, then compares
-        with the previous frame to detect movement (pole bending).
+        Uses Optical Flow to track movement in red/blue colored regions.
+        Detects significant lateral movement that indicates pole bending.
 
         Args:
             frame: Current video frame in BGR format
 
         Returns:
-            True if gate motion detected, False otherwise
+            True if gate bending detected, False otherwise
         """
         # Check cooldown - don't detect too frequently
         frames_since_last = self.current_frame_number - self.last_detection_frame
         if frames_since_last < self.detection_cooldown_frames:
             return False
+
+        # Convert to grayscale for Optical Flow
+        current_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # Convert to HSV for color detection
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -629,52 +632,87 @@ class SkiingVideoAnalyzer:
         blue_mask = cv2.inRange(hsv, self.blue_lower, self.blue_upper)
 
         # Combine red and blue masks
-        combined_mask = cv2.bitwise_or(red_mask, blue_mask)
+        pole_mask = cv2.bitwise_or(red_mask, blue_mask)
 
-        # Apply some morphological operations to reduce noise
+        # Apply morphological operations to clean up the mask
         kernel = np.ones((5, 5), np.uint8)
-        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
-        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
+        pole_mask = cv2.morphologyEx(pole_mask, cv2.MORPH_OPEN, kernel)
+        pole_mask = cv2.morphologyEx(pole_mask, cv2.MORPH_CLOSE, kernel)
+        pole_mask = cv2.dilate(pole_mask, kernel, iterations=2)
 
-        # Extract only the colored regions from the frame
-        colored_regions = cv2.bitwise_and(frame, frame, mask=combined_mask)
-
-        # Convert to grayscale for comparison
-        current_gray = cv2.cvtColor(colored_regions, cv2.COLOR_BGR2GRAY)
+        # Check if we have enough pole pixels
+        pole_pixels = cv2.countNonZero(pole_mask)
+        if pole_pixels < 200:
+            self.previous_frame = current_gray.copy()
+            return False
 
         # If no previous frame, store and return
         if self.previous_frame is None:
             self.previous_frame = current_gray.copy()
             return False
 
-        # Calculate absolute difference between frames
-        frame_diff = cv2.absdiff(self.previous_frame, current_gray)
+        # Calculate Optical Flow using Farneback method
+        # This gives us motion vectors for each pixel
+        flow = cv2.calcOpticalFlowFarneback(
+            self.previous_frame,
+            current_gray,
+            None,
+            pyr_scale=0.5,
+            levels=3,
+            winsize=15,
+            iterations=3,
+            poly_n=5,
+            poly_sigma=1.2,
+            flags=0
+        )
 
-        # Threshold the difference
-        threshold = 255 - (self.detection_sensitivity * 2)  # Higher sensitivity = lower threshold
-        threshold = max(10, min(threshold, 200))
-        _, thresh = cv2.threshold(frame_diff, threshold, 255, cv2.THRESH_BINARY)
+        # Extract horizontal (x) and vertical (y) flow components
+        flow_x = flow[..., 0]  # Horizontal movement
+        flow_y = flow[..., 1]  # Vertical movement
 
-        # Count non-zero pixels (amount of change in colored regions)
-        change_pixels = cv2.countNonZero(thresh)
-        total_colored_pixels = cv2.countNonZero(combined_mask)
+        # Calculate magnitude of movement
+        magnitude = np.sqrt(flow_x**2 + flow_y**2)
 
-        # Store current frame for next comparison
-        self.previous_frame = current_gray.copy()
+        # Apply pole mask - only look at movement in pole regions
+        pole_flow_x = np.where(pole_mask > 0, flow_x, 0)
+        pole_flow_y = np.where(pole_mask > 0, flow_y, 0)
+        pole_magnitude = np.where(pole_mask > 0, magnitude, 0)
 
-        # Calculate change ratio
-        if total_colored_pixels > 100:  # Only if we have enough colored pixels
-            change_ratio = change_pixels / total_colored_pixels
+        # Calculate average movement in pole regions
+        if pole_pixels > 0:
+            avg_pole_magnitude = np.sum(pole_magnitude) / pole_pixels
+            avg_pole_x = np.sum(np.abs(pole_flow_x)) / pole_pixels
+            avg_pole_y = np.sum(np.abs(pole_flow_y)) / pole_pixels
 
-            # Detect if significant change (gate bending)
-            # Sensitivity affects the required change ratio
-            required_ratio = 0.15 - (self.detection_sensitivity * 0.001)
-            required_ratio = max(0.05, min(required_ratio, 0.20))
+            # Calculate global camera movement (average of whole frame)
+            total_pixels = current_gray.shape[0] * current_gray.shape[1]
+            avg_global_magnitude = np.sum(magnitude) / total_pixels
 
-            if change_ratio > required_ratio and change_pixels > 500:
+            # Pole bending creates EXTRA movement compared to camera motion
+            # When pole bends, it moves MORE than the background
+            relative_movement = avg_pole_magnitude - avg_global_magnitude
+
+            # Sensitivity affects the threshold (higher = more sensitive)
+            threshold = 3.0 - (self.detection_sensitivity * 0.025)
+            threshold = max(0.5, min(threshold, 3.0))
+
+            # Also check for significant horizontal movement (pole bending sideways)
+            horizontal_movement = avg_pole_x
+
+            # Store current frame for next comparison
+            self.previous_frame = current_gray.copy()
+
+            # Detection criteria:
+            # 1. Pole is moving more than the background (relative_movement)
+            # 2. There's significant horizontal movement (pole bending)
+            # 3. Overall pole movement is significant
+            if (relative_movement > threshold or
+                horizontal_movement > threshold * 1.5) and avg_pole_magnitude > 2.0:
                 self.last_detection_frame = self.current_frame_number
                 return True
 
+        # Store current frame for next comparison
+        self.previous_frame = current_gray.copy()
         return False
 
     def _on_progress_change(self, value):
