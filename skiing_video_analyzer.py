@@ -120,10 +120,9 @@ class SkiingVideoAnalyzer:
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Right side: Split times panel
-        right_frame = ttk.Frame(main_frame, width=350)
+        right_frame = ttk.Frame(main_frame, width=280)
         right_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(10, 0))
         right_frame.pack_propagate(False)
-        right_frame.configure(width=350)  # Force minimum width
 
         # --- Video Display Area ---
         video_frame = ttk.LabelFrame(left_frame, text="Video Player", padding="5")
@@ -240,27 +239,31 @@ class SkiingVideoAnalyzer:
         )
         times_header.pack(pady=(0, 10))
 
+        # Frame to hold treeview and scrollbar together
+        tree_frame = ttk.Frame(right_frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+
         # Treeview for split times
         columns = ('gate', 'timestamp', 'split')
         self.times_tree = ttk.Treeview(
-            right_frame,
+            tree_frame,
             columns=columns,
             show='headings',
-            height=20
+            height=15
         )
 
         # Configure columns
         self.times_tree.heading('gate', text='Gate #')
-        self.times_tree.heading('timestamp', text='Video Time (s)')
+        self.times_tree.heading('timestamp', text='Time (s)')
         self.times_tree.heading('split', text='Split (s)')
 
-        self.times_tree.column('gate', width=70, anchor=tk.CENTER, minwidth=70)
-        self.times_tree.column('timestamp', width=120, anchor=tk.CENTER, minwidth=100)
-        self.times_tree.column('split', width=100, anchor=tk.CENTER, minwidth=80)
+        self.times_tree.column('gate', width=50, anchor=tk.CENTER)
+        self.times_tree.column('timestamp', width=80, anchor=tk.CENTER)
+        self.times_tree.column('split', width=80, anchor=tk.CENTER)
 
         # Scrollbar for treeview
         times_scroll = ttk.Scrollbar(
-            right_frame,
+            tree_frame,
             orient=tk.VERTICAL,
             command=self.times_tree.yview
         )
