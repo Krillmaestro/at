@@ -60,12 +60,9 @@ export default function Home() {
                 </span>
               </div>
               <div className="flex items-center gap-4">
-                <Link href="/login" className="nav-link font-medium">
-                  Log in
-                </Link>
-                <Link href="/signup">
+                <Link href="/dashboard">
                   <Button variant="primary" size="sm">
-                    Get Started
+                    Open Dashboard
                   </Button>
                 </Link>
               </div>
@@ -99,9 +96,9 @@ export default function Home() {
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link href="/signup">
+                <Link href="/dashboard">
                   <Button variant="primary" size="lg">
-                    Start Free Trial
+                    Open Dashboard
                   </Button>
                 </Link>
                 <Link href="#features">
@@ -109,6 +106,13 @@ export default function Home() {
                     See Features
                   </Button>
                 </Link>
+              </div>
+
+              {/* Local Mode Banner */}
+              <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-success/10 border border-success/30 rounded-full">
+                <span className="text-sm text-success">
+                  Running in Local Mode - No account required!
+                </span>
               </div>
             </div>
 
@@ -231,15 +235,15 @@ export default function Home() {
               Ready to Improve Your Team&apos;s Performance?
             </h2>
             <p className="text-lg text-text-secondary mb-8">
-              Join ski teams who have simplified their video analysis workflow.
+              Start analyzing your ski videos right now - no signup required!
             </p>
-            <Link href="/signup">
+            <Link href="/dashboard">
               <Button variant="primary" size="lg">
-                Start Your Free Trial
+                Open Dashboard
               </Button>
             </Link>
             <p className="mt-4 text-sm text-text-muted">
-              No credit card required. Cancel anytime.
+              Local mode: All data stored in your browser.
             </p>
           </div>
         </section>

@@ -1,5 +1,6 @@
-// Watch Page - Single video player view
+// Watch Page - Single video player view (Local Version)
 
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Layout, PageContainer } from '../../components/layout';
@@ -13,49 +14,40 @@ import {
   UserIcon,
   ChevronDownIcon,
 } from '../../components/ui/Icons';
-
-// Demo video data (in production, fetch from Supabase)
-const DEMO_VIDEOS = {
-  '1': {
-    id: '1',
-    title: 'Slalom Run 1 - Morning Training',
-    src: 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', // Demo video
-    thumbnail_path: null,
-    duration_seconds: 23,
-    athlete_name: 'Erik Lindqvist',
-    run_date: '2024-12-05',
-    location: 'Åre',
-    discipline: 'slalom',
-    notes: 'Good timing on gates 3-5, need to work on upper body position through the fall line.',
-  },
-  '2': {
-    id: '2',
-    title: 'Giant Slalom - Gate Analysis',
-    src: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-    thumbnail_path: null,
-    duration_seconds: 45,
-    athlete_name: 'Anna Svensson',
-    run_date: '2024-12-04',
-    location: 'Sälen',
-    discipline: 'giant_slalom',
-    notes: null,
-  },
-};
+import { localVideos } from '../../lib/localStorage';
 
 export default function WatchPage() {
   const router = useRouter();
   const { id } = router.query;
+  const [video, setVideo] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Get video data (in production, this would be fetched from API)
-  const video = DEMO_VIDEOS[id] || {
-    id,
-    title: 'Demo Video',
-    src: 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-    athlete_name: 'Demo Athlete',
-    run_date: new Date().toISOString().split('T')[0],
-    location: 'Demo Location',
-    discipline: 'training',
-  };
+  // Load video from local storage
+  useEffect(() => {
+    if (!id) return;
+
+    // Initialize demo data if needed
+    localVideos.initializeDemoData();
+
+    // Find the video
+    const foundVideo = localVideos.getById(id);
+
+    if (foundVideo) {
+      setVideo(foundVideo);
+    } else {
+      // Fallback demo video
+      setVideo({
+        id,
+        title: 'Demo Video',
+        src: 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        athlete_name: 'Demo Athlete',
+        run_date: new Date().toISOString().split('T')[0],
+        location: 'Demo Location',
+        discipline: 'training',
+      });
+    }
+    setIsLoading(false);
+  }, [id]);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '';
@@ -66,6 +58,16 @@ export default function WatchPage() {
       day: 'numeric',
     });
   };
+
+  if (isLoading || !video) {
+    return (
+      <Layout title="Loading - AlpineVideo">
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout title={`${video.title} - AlpineVideo`}>

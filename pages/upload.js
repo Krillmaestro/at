@@ -1,10 +1,11 @@
-// Upload Page - Upload new videos
+// Upload Page - Upload new videos (Local Version)
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { Layout, PageContainer, PageHeader } from '../components/layout';
 import { UploadZone, UploadProgress, VideoMetadataForm } from '../components/upload';
 import Card from '../components/ui/Card';
+import { localVideos } from '../lib/localStorage';
 
 export default function UploadPage() {
   const router = useRouter();
@@ -13,13 +14,14 @@ export default function UploadPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [compressionProgress, setCompressionProgress] = useState(0);
   const [error, setError] = useState(null);
+  const [athletes, setAthletes] = useState([]);
 
-  // Mock athletes for demo
-  const athletes = [
-    { id: '1', full_name: 'Erik Lindqvist' },
-    { id: '2', full_name: 'Anna Svensson' },
-    { id: '3', full_name: 'Marcus Berg' },
-  ];
+  // Load athletes from existing videos
+  useEffect(() => {
+    localVideos.initializeDemoData();
+    const existingAthletes = localVideos.getAthletes();
+    setAthletes(existingAthletes);
+  }, []);
 
   const handleFileSelect = (file) => {
     setSelectedFile(file);
@@ -37,9 +39,12 @@ export default function UploadPage() {
       setUploadStatus('uploading');
       setUploadProgress(0);
 
-      // Simulate upload progress
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
+      // Create blob URL for the video file
+      const videoUrl = URL.createObjectURL(selectedFile);
+
+      // Simulate upload progress (instant for local files)
+      for (let i = 0; i <= 100; i += 20) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
         setUploadProgress(i);
       }
 
@@ -47,17 +52,35 @@ export default function UploadPage() {
       setCompressionProgress(0);
 
       // Simulate compression progress
-      for (let i = 0; i <= 100; i += 5) {
-        await new Promise((resolve) => setTimeout(resolve, 150));
+      for (let i = 0; i <= 100; i += 10) {
+        await new Promise((resolve) => setTimeout(resolve, 80));
         setCompressionProgress(i);
       }
 
+      // Find athlete name from selected ID
+      const athleteName = metadata.athlete_id
+        ? athletes.find((a) => a.id === metadata.athlete_id)?.full_name || metadata.athlete_id
+        : null;
+
+      // Save video to localStorage
+      const newVideo = localVideos.add({
+        title: metadata.title || selectedFile.name,
+        src: videoUrl,
+        thumbnail_path: null,
+        duration_seconds: null, // Could be extracted from video element
+        athlete_name: athleteName,
+        run_date: metadata.run_date || new Date().toISOString().split('T')[0],
+        location: metadata.location || null,
+        discipline: metadata.discipline || null,
+        notes: metadata.notes || null,
+      });
+
       setUploadStatus('complete');
 
-      // Redirect to dashboard after success
+      // Redirect to the new video after success
       setTimeout(() => {
-        router.push('/dashboard');
-      }, 2000);
+        router.push(`/watch/${newVideo.id}`);
+      }, 1500);
     } catch (err) {
       setUploadStatus('error');
       setError(err.message || 'Upload failed');

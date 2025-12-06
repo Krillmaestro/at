@@ -1,43 +1,22 @@
-// Login Page - Dark theme with orange accents
+// Login Page - Local Version (auto-login)
 
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Head from 'next/head';
-import { supabase } from '../lib/supabaseClient';
 import Button from '../components/ui/Button';
-import Input from '../components/ui/Input';
-import { SkiIcon } from '../components/ui/Icons';
+import { SkiIcon, CheckIcon } from '../components/ui/Icons';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setIsLoading(true);
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        setError(error.message);
-      } else {
-        router.push('/dashboard');
-      }
-    } catch (err) {
-      setError('An unexpected error occurred');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Auto-redirect to dashboard in local mode
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      router.push('/dashboard');
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [router]);
 
   return (
     <>
@@ -56,73 +35,35 @@ export default function Login() {
           </span>
         </Link>
 
-        {/* Login Card */}
-        <div className="w-full max-w-md bg-bg-secondary border border-border-color rounded-2xl p-8">
-          <h1 className="text-2xl font-bold text-text-primary text-center mb-2">
-            Welcome back
+        {/* Auto-login Card */}
+        <div className="w-full max-w-md bg-bg-secondary border border-border-color rounded-2xl p-8 text-center">
+          <div className="w-16 h-16 bg-success/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckIcon className="w-8 h-8 text-success" />
+          </div>
+
+          <h1 className="text-2xl font-bold text-text-primary mb-2">
+            Local Mode Active
           </h1>
-          <p className="text-text-secondary text-center mb-8">
-            Log in to access your videos
+          <p className="text-text-secondary mb-6">
+            No login required - redirecting to dashboard...
           </p>
 
-          {error && (
-            <div className="mb-6 p-4 bg-error/10 border border-error/30 rounded-lg">
-              <p className="text-error text-sm">{error}</p>
-            </div>
-          )}
+          <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-6" />
 
-          <form onSubmit={handleLogin} className="space-y-6">
-            <Input
-              label="Email"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-
-            <Input
-              label="Password"
-              type="password"
-              placeholder="Your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-
-            <Button
-              type="submit"
-              variant="primary"
-              className="w-full"
-              loading={isLoading}
-            >
-              Log in
+          <Link href="/dashboard">
+            <Button variant="primary" className="w-full">
+              Go to Dashboard Now
             </Button>
-          </form>
-
-          <div className="mt-6 flex items-center justify-between text-sm">
-            <Link
-              href="/signup"
-              className="text-orange-500 hover:text-orange-400 transition-colors"
-            >
-              Create account
-            </Link>
-            <Link
-              href="/forgot-password"
-              className="text-text-secondary hover:text-text-primary transition-colors"
-            >
-              Forgot password?
-            </Link>
-          </div>
+          </Link>
         </div>
 
-        {/* Back Link */}
-        <Link
-          href="/"
-          className="mt-8 text-text-secondary hover:text-text-primary transition-colors text-sm"
-        >
-          &larr; Back to home
-        </Link>
+        {/* Info Banner */}
+        <div className="mt-8 p-4 bg-orange-500/10 border border-orange-500/30 rounded-xl max-w-md">
+          <p className="text-sm text-orange-400 text-center">
+            <strong>Local Mode:</strong> All data is stored in your browser.
+            No server or account needed!
+          </p>
+        </div>
       </div>
     </>
   );

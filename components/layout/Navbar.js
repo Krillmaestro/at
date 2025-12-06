@@ -1,9 +1,9 @@
-// Navbar Component - Main navigation bar
+// Navbar Component - Main navigation bar (Local Version)
 
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import { localAuth } from '../../lib/localStorage';
 import {
   SkiIcon,
   UploadIcon,
@@ -20,14 +20,17 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
+  // Get current user for display
+  const user = localAuth.getUser();
+
   const navigation = [
     { name: 'Videos', href: '/dashboard', icon: VideoIcon },
     { name: 'Upload', href: '/upload', icon: UploadIcon },
     { name: 'Compare', href: '/compare', icon: CompareIcon },
   ];
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    // In local mode, just redirect to landing page
     router.push('/');
   };
 

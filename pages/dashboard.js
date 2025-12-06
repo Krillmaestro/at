@@ -1,83 +1,16 @@
-// Dashboard Page - Video Library
+// Dashboard Page - Video Library (Local Version)
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { supabase } from '../lib/supabaseClient';
 import { Layout, PageContainer, PageHeader, Sidebar } from '../components/layout';
 import { VideoThumbnail } from '../components/video';
 import Button from '../components/ui/Button';
 import { UploadIcon, SearchIcon, FilterIcon } from '../components/ui/Icons';
-
-// Demo videos for testing the UI
-const DEMO_VIDEOS = [
-  {
-    id: '1',
-    title: 'Slalom Run 1 - Morning Training',
-    thumbnail_path: null,
-    duration_seconds: 23,
-    athlete_name: 'Erik Lindqvist',
-    run_date: '2024-12-05',
-    location: 'Åre',
-    discipline: 'slalom',
-  },
-  {
-    id: '2',
-    title: 'Giant Slalom - Gate Analysis',
-    thumbnail_path: null,
-    duration_seconds: 45,
-    athlete_name: 'Anna Svensson',
-    run_date: '2024-12-04',
-    location: 'Sälen',
-    discipline: 'giant_slalom',
-  },
-  {
-    id: '3',
-    title: 'Super-G Practice Run',
-    thumbnail_path: null,
-    duration_seconds: 31,
-    athlete_name: 'Marcus Berg',
-    run_date: '2024-12-03',
-    location: 'Åre',
-    discipline: 'super_g',
-  },
-  {
-    id: '4',
-    title: 'Slalom Run 2 - Afternoon Session',
-    thumbnail_path: null,
-    duration_seconds: 21,
-    athlete_name: 'Erik Lindqvist',
-    run_date: '2024-12-05',
-    location: 'Åre',
-    discipline: 'slalom',
-  },
-  {
-    id: '5',
-    title: 'Downhill Training',
-    thumbnail_path: null,
-    duration_seconds: 58,
-    athlete_name: 'Anna Svensson',
-    run_date: '2024-12-02',
-    location: 'Trysil',
-    discipline: 'downhill',
-  },
-  {
-    id: '6',
-    title: 'Giant Slalom - Competition Run',
-    thumbnail_path: null,
-    duration_seconds: 42,
-    athlete_name: 'Marcus Berg',
-    run_date: '2024-12-01',
-    location: 'Hemsedal',
-    discipline: 'giant_slalom',
-  },
-];
+import { localVideos } from '../lib/localStorage';
 
 export default function Dashboard() {
-  const router = useRouter();
-  const [user, setUser] = useState(null);
-  const [videos, setVideos] = useState(DEMO_VIDEOS);
-  const [filteredVideos, setFilteredVideos] = useState(DEMO_VIDEOS);
+  const [videos, setVideos] = useState([]);
+  const [filteredVideos, setFilteredVideos] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filter states
@@ -87,36 +20,22 @@ export default function Dashboard() {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Get unique athletes from videos
-  const athletes = [...new Set(videos.map((v) => v.athlete_name))].map((name, i) => ({
+  const athletes = [...new Set(videos.map((v) => v.athlete_name).filter(Boolean))].map((name, i) => ({
     id: String(i + 1),
     full_name: name,
   }));
 
-  // Auth check
+  // Load videos from local storage on mount
   useEffect(() => {
-    const fetchUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (data?.user) {
-        setUser(data.user);
-      } else {
-        router.push('/login');
-      }
-      setIsLoading(false);
-    };
+    // Initialize demo data if empty, then load all videos
+    localVideos.initializeDemoData();
+    const allVideos = localVideos.getAll();
+    setVideos(allVideos);
+    setFilteredVideos(allVideos);
+    setIsLoading(false);
+  }, []);
 
-    fetchUser();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
-      if (!session?.user) router.push('/login');
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, [router]);
-
-  // Filter videos
+  // Filter videos when filters change
   useEffect(() => {
     let result = videos;
 
@@ -124,7 +43,7 @@ export default function Dashboard() {
       const query = searchQuery.toLowerCase();
       result = result.filter(
         (v) =>
-          v.title.toLowerCase().includes(query) ||
+          v.title?.toLowerCase().includes(query) ||
           v.athlete_name?.toLowerCase().includes(query) ||
           v.location?.toLowerCase().includes(query)
       );
@@ -190,6 +109,13 @@ export default function Dashboard() {
                 </>
               }
             />
+
+            {/* Local Mode Banner */}
+            <div className="mb-6 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+              <p className="text-sm text-orange-400">
+                <strong>Local Mode:</strong> Videos are stored in your browser. No server needed!
+              </p>
+            </div>
 
             {/* Mobile Filters */}
             {showMobileFilters && (

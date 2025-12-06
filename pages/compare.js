@@ -1,79 +1,36 @@
-// Compare Page - Side-by-side video comparison
+// Compare Page - Side-by-side video comparison (Local Version)
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
 import { Layout, PageContainer, PageHeader } from '../components/layout';
 import { ComparisonView, VideoThumbnail } from '../components/video';
-import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import { ChevronDownIcon, VideoIcon } from '../components/ui/Icons';
-
-// Demo videos
-const DEMO_VIDEOS = [
-  {
-    id: '1',
-    title: 'Slalom Run 1 - Morning Training',
-    src: 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-    thumbnail_path: null,
-    duration_seconds: 23,
-    athlete_name: 'Erik Lindqvist',
-    run_date: '2024-12-05',
-    location: 'Åre',
-    discipline: 'slalom',
-  },
-  {
-    id: '2',
-    title: 'Giant Slalom - Gate Analysis',
-    src: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-    thumbnail_path: null,
-    duration_seconds: 45,
-    athlete_name: 'Anna Svensson',
-    run_date: '2024-12-04',
-    location: 'Sälen',
-    discipline: 'giant_slalom',
-  },
-  {
-    id: '3',
-    title: 'Super-G Practice Run',
-    src: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    thumbnail_path: null,
-    duration_seconds: 31,
-    athlete_name: 'Marcus Berg',
-    run_date: '2024-12-03',
-    location: 'Åre',
-    discipline: 'super_g',
-  },
-  {
-    id: '4',
-    title: 'Slalom Run 2 - Afternoon Session',
-    src: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-    thumbnail_path: null,
-    duration_seconds: 21,
-    athlete_name: 'Erik Lindqvist',
-    run_date: '2024-12-05',
-    location: 'Åre',
-    discipline: 'slalom',
-  },
-];
+import { localVideos } from '../lib/localStorage';
 
 export default function ComparePage() {
   const router = useRouter();
   const { video1: video1Id, video2: video2Id } = router.query;
 
+  const [videos, setVideos] = useState([]);
   const [selectedVideo1, setSelectedVideo1] = useState(null);
   const [selectedVideo2, setSelectedVideo2] = useState(null);
   const [isSelectingVideo, setIsSelectingVideo] = useState(null); // 1 or 2
   const [showVideoModal, setShowVideoModal] = useState(false);
 
-  // Set initial videos from URL params
-  useMemo(() => {
+  // Load videos from local storage
+  useEffect(() => {
+    localVideos.initializeDemoData();
+    const allVideos = localVideos.getAll();
+    setVideos(allVideos);
+
+    // Set initial videos from URL params
     if (video1Id) {
-      const v = DEMO_VIDEOS.find((v) => v.id === video1Id);
+      const v = allVideos.find((v) => v.id === video1Id);
       if (v) setSelectedVideo1(v);
     }
     if (video2Id) {
-      const v = DEMO_VIDEOS.find((v) => v.id === video2Id);
+      const v = allVideos.find((v) => v.id === video2Id);
       if (v) setSelectedVideo2(v);
     }
   }, [video1Id, video2Id]);
@@ -94,7 +51,7 @@ export default function ComparePage() {
   };
 
   // Available videos for selection (exclude already selected)
-  const availableVideos = DEMO_VIDEOS.filter((v) => {
+  const availableVideos = videos.filter((v) => {
     if (isSelectingVideo === 1) {
       return v.id !== selectedVideo2?.id;
     }
@@ -193,15 +150,15 @@ export default function ComparePage() {
           <h4 className="text-sm font-medium text-text-primary mb-3">Tips for comparison</h4>
           <ul className="text-sm text-text-secondary space-y-2">
             <li className="flex items-start gap-2">
-              <span className="text-orange-500">•</span>
+              <span className="text-orange-500">*</span>
               Use the <strong>Sync</strong> button to link both videos together
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-orange-500">•</span>
+              <span className="text-orange-500">*</span>
               Set <strong>Sync Points</strong> at the same gate or moment in both videos
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-orange-500">•</span>
+              <span className="text-orange-500">*</span>
               Use <strong>0.25x speed</strong> for detailed technique analysis
             </li>
           </ul>
