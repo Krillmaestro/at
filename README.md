@@ -1,40 +1,152 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# AlpineVideo - Video Analysis for Ski Racing
 
-## Getting Started
+A simplified video analysis platform built specifically for alpine skiing coaches and athletes. Compare runs side-by-side, analyze technique frame-by-frame, and help your athletes improve.
 
-First, run the development server:
+![AlpineVideo](https://via.placeholder.com/800x400/0D0D0D/FF6B00?text=AlpineVideo)
+
+## Features
+
+- **Frame-by-Frame Playback** - Analyze every movement with 0.25x, 0.5x, 0.75x, 1x speed control
+- **Side-by-Side Comparison** - Compare two runs with synchronized playback
+- **Easy Video Upload** - Drag & drop with automatic compression
+- **Video Library** - Filter by athlete, date, discipline
+- **Mobile Responsive** - Works on phone, tablet, and desktop
+- **Dark Theme** - Professional design with orange accents (inspired by Dartfish)
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+# Make setup script executable and run it
+chmod +x setup.sh
+./setup.sh
+```
+
+Or manually:
+
+```bash
+npm install
+```
+
+### 2. Configure Environment
+
+```bash
+# Copy the example environment file
+cp .env.example .env.local
+
+# Edit .env.local and add your Supabase credentials
+```
+
+Get your Supabase credentials from:
+1. Go to https://app.supabase.com
+2. Create a new project (or use existing)
+3. Go to Settings > API
+4. Copy the URL and anon key
+
+### 3. Set Up Database
+
+1. Go to your Supabase project
+2. Open the SQL Editor
+3. Copy the contents of `database/schema.sql`
+4. Run the SQL to create tables
+
+### 4. Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `pages/index.js`. The page auto-updates as you edit the file.
+## Project Structure
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.js`.
+```
+├── components/
+│   ├── layout/          # Navbar, Sidebar, Layout
+│   ├── ui/              # Button, Card, Input, Modal, Icons
+│   ├── upload/          # UploadZone, Progress, MetadataForm
+│   └── video/           # VideoPlayer, ComparisonView, Thumbnail
+├── database/
+│   └── schema.sql       # Supabase database schema
+├── hooks/
+│   ├── useVideoPlayer.js    # Video player logic
+│   └── useKeyboardShortcuts.js
+├── lib/
+│   └── supabaseClient.js
+├── pages/
+│   ├── index.js         # Landing page
+│   ├── login.js         # Login page
+│   ├── signup.js        # Signup page
+│   ├── dashboard.js     # Video library
+│   ├── upload.js        # Upload new video
+│   ├── compare.js       # Side-by-side comparison
+│   └── watch/[id].js    # Single video player
+├── styles/
+│   └── globals.css      # Design system & styles
+└── public/              # Static assets
+```
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+## Keyboard Shortcuts (Video Player)
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Key | Action |
+|-----|--------|
+| `Space` | Play/Pause |
+| `←` / `→` | Step frame backward/forward |
+| `Shift + ←/→` | Skip 5 seconds |
+| `J` / `L` | Skip 5 seconds back/forward |
+| `S` | Cycle playback speed |
+| `1-4` | Set speed (0.25x, 0.5x, 0.75x, 1x) |
+| `M` | Toggle mute |
+| `F` | Toggle fullscreen |
 
-## Learn More
+## Design System
 
-To learn more about Next.js, take a look at the following resources:
+### Colors
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
+| Name | Hex | Usage |
+|------|-----|-------|
+| Background Primary | `#0D0D0D` | Main background |
+| Background Secondary | `#1A1A1A` | Cards, panels |
+| Orange 500 | `#FF6B00` | Primary accent, buttons |
+| Text Primary | `#FFFFFF` | Headings |
+| Text Secondary | `#A3A3A3` | Body text |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Components
 
-## Deploy on Vercel
+The design system includes reusable components:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `Button` - Primary, secondary, ghost variants
+- `Card` - With hover states and sections
+- `Input` - Text, select, textarea with labels
+- `Modal` - Responsive dialog
+- `VideoPlayer` - Full-featured player
+- `ComparisonView` - Side-by-side player
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
+## Tech Stack
+
+- **Framework**: Next.js 15, React 19
+- **Styling**: Tailwind CSS
+- **Database**: Supabase (PostgreSQL)
+- **Auth**: Supabase Auth
+- **Storage**: Supabase Storage
+
+## Demo Mode
+
+The app includes demo videos for testing. When you log in, you'll see sample videos in the library. These use public sample videos for demonstration.
+
+## Next Steps (Future Development)
+
+1. **Video Compression** - Add FFmpeg server-side compression
+2. **Drawing Tools** - Add annotation/drawing on videos
+3. **Team Management** - Invite athletes, manage roles
+4. **Analytics** - Track viewing stats
+5. **Export** - Download comparison clips
+
+## License
+
+Built for alpine ski teams.
+
+---
+
+Made with speed in mind.
